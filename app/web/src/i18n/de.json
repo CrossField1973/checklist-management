@@ -110,6 +110,7 @@
     "too_many_tokens": "Es sind höchstens 50 aktive Token möglich.",
     "import_invalid": "Die Datei enthält Fehler. Es wurde nichts importiert.",
     "invalid_or_expired_token": "Der Link ist ungültig oder abgelaufen.",
+    "forbidden_origin": "Die Adresse im Browser stimmt nicht mit APP_BASE_URL des Servers überein. Bitte APP_BASE_URL in der .env anpassen und neu starten.",
     "not_found": "Nicht gefunden.",
     "run_not_active": "Diese Durchführung ist archiviert und schreibgeschützt.",
     "sso_denied": "Die Anmeldung beim Identitätsanbieter wurde abgebrochen.",
