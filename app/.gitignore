@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+data
+*.db
+*.db-*
+web/dist
+web/node_modules
+.e2e-data
+test-results
+playwright-report

@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* Farben als Variablen: hell (Standard), dunkel per [data-theme=dark] oder – bei „System“ – per Betriebssystem-Einstellung */
+:root {
+  color-scheme: light;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --text: #1d2330;
+  --muted: #5b6475;
+  --border: #d9dee7;
+  --primary: #2563eb;
+  --primary-text: #ffffff;
+  --soft: #eef2ff;
+  --ok: #15803d;
+  --warn: #a15c07;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --focus: #1d4ed8;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #12151c;
+  --surface: #1b1f29;
+  --text: #e8ebf2;
+  --muted: #a3adc0;
+  --border: #323a4d;
+  --primary: #7aa5ff;
+  --primary-text: #0b1020;
+  --soft: #232a40;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --danger-soft: #3a1f23;
+  --focus: #9dbcff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+    --bg: #12151c;
+    --surface: #1b1f29;
+    --text: #e8ebf2;
+    --muted: #a3adc0;
+    --border: #323a4d;
+    --primary: #7aa5ff;
+    --primary-text: #0b1020;
+    --soft: #232a40;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --danger-soft: #3a1f23;
+    --focus: #9dbcff;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-soft: var(--soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html { background: var(--bg); }
+body { margin: 0; font-family: var(--font-sans); font-size: 15px; line-height: 1.5; color: var(--text); background: var(--bg); }
+h1, h2, h3 { line-height: 1.25; }
+
+/* Sichtbarer Fokus für Tastaturbedienung (WCAG 2.4.7) */
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+.skip-link { position: absolute; left: -999px; top: 8px; background: var(--primary); color: var(--primary-text); padding: 8px 14px; border-radius: 8px; z-index: 100; }
+.skip-link:focus { left: 8px; }
+
+@layer components {
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; min-height: 38px; }
+  .btn:hover:not(:disabled) { background: var(--bg); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-text); font-weight: 600; }
+  .btn-primary:hover:not(:disabled) { background: var(--primary); filter: brightness(1.08); }
+  .btn-danger { color: var(--danger); border-color: var(--danger); }
+  .btn-sm { padding: 4px 10px; font-size: 13px; min-height: 30px; }
+  .input { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; min-height: 40px; }
+  .input[aria-invalid="true"] { border-color: var(--danger); }
+  .label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  .hint { font-size: 13px; color: var(--muted); }
+  .alert { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 14px; }
+  .alert-error { border-color: var(--danger); background: var(--danger-soft); color: var(--text); }
+  .alert-ok { border-color: var(--ok); }
+  .alert-info { background: var(--soft); }
+  .link { color: var(--primary); text-decoration: underline; cursor: pointer; background: none; border: 0; padding: 0; font: inherit; }
+  .tag { display: inline-flex; align-items: center; padding: 1px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+  .badge { font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 99px; padding: 0 8px; color: var(--muted); }
+  dialog.dialog { margin: auto; border: 1px solid var(--border); border-radius: 14px; padding: 22px; width: min(560px, calc(100vw - 32px)); background: var(--surface); color: var(--text); max-height: 90vh; overflow: auto; }
+  dialog.dialog::backdrop { background: rgba(10, 14, 25, .55); }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+  .code-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; word-break: break-all; }
+}
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

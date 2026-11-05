@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checklisten-Management – Mockup</title>
+<style>
+:root{--bg:#f5f6f8;--surface:#fff;--text:#1d2330;--muted:#667085;--border:#dfe3ea;--primary:#2563eb;--primary-t:#fff;--ok:#16a34a;--warn:#b45309;--danger:#dc2626;--soft:#eef2ff;--shadow:0 1px 3px rgba(16,24,40,.1)}
+:root[data-theme=dark]{--bg:#12151c;--surface:#1b1f29;--text:#e8ebf2;--muted:#9aa3b5;--border:#2d3342;--primary:#6b9bff;--primary-t:#0b1020;--ok:#4ade80;--warn:#fbbf24;--danger:#f87171;--soft:#232a40;--shadow:none}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+.app{display:grid;grid-template-columns:230px 1fr;min-height:100vh}
+nav{background:var(--surface);border-right:1px solid var(--border);padding:16px 12px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+nav h1{font-size:17px;margin:4px 8px 14px;display:flex;gap:8px;align-items:center}
+nav a{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:8px;color:var(--text);text-decoration:none;cursor:pointer}
+nav a:hover{background:var(--bg)} nav a.active{background:var(--soft);color:var(--primary);font-weight:600}
+nav .sp{flex:1}
+.badge{font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:0 8px;color:var(--muted)}
+main{padding:24px 28px;max-width:980px;width:100%}
+.head{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.head h2{margin:0;font-size:22px;flex:1}
+.btn{border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:8px 14px;display:inline-flex;gap:6px;align-items:center}
+.btn:hover{background:var(--bg)}
+.btn.primary{background:var(--primary);color:var(--primary-t);border-color:var(--primary);font-weight:600}
+.btn.danger{color:var(--danger)}
+.btn.sm{padding:4px 10px;font-size:13px}
+.btn.icon{padding:6px 10px}
+.plus{width:44px;height:44px;border-radius:50%;font-size:26px;line-height:1;justify-content:center;padding:0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+.list{display:grid;gap:10px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+.muted{color:var(--muted);font-size:13px}
+.title{font-weight:600}
+input[type=text],input[type=email],input[type=password],textarea,select{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+.bar{height:8px;border-radius:99px;background:var(--border);overflow:hidden;min-width:100px}
+.bar i{display:block;height:100%;background:var(--primary);border-radius:99px;transition:width .2s}
+.bar.done i{background:var(--ok)}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:1px 9px;border-radius:99px;font-size:12px;color:#fff;font-weight:600}
+.status{font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--border)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.toolbar input{max-width:260px}
+.chip{border:1px solid var(--border);background:var(--surface);border-radius:99px;padding:2px 12px;font-size:13px}
+.chip.on{background:var(--soft);border-color:var(--primary);color:var(--primary)}
+details.sec{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:12px;box-shadow:var(--shadow)}
+details.sec>summary{padding:12px 16px;cursor:pointer;display:flex;gap:12px;align-items:center;list-style:none;font-weight:600}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary::before{content:"▸";color:var(--muted)} details.sec[open]>summary::before{content:"▾"}
+.items{padding:0 16px 12px}
+.item{display:flex;gap:8px;align-items:flex-start;padding:5px 0}
+.item input[type=checkbox]{width:19px;height:19px;margin-top:2px;accent-color:var(--primary)}
+.item .t.done{text-decoration:line-through;color:var(--muted)}
+.item .grip{color:var(--muted);cursor:grab;user-select:none}
+.sub{margin-left:26px;border-left:2px solid var(--border);padding-left:10px}
+.item .actions{margin-left:auto;display:flex;gap:4px;opacity:.0}
+.item:hover .actions,.item:focus-within .actions{opacity:1}
+.overlay{position:fixed;inset:0;background:rgba(10,14,25,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+.overlay.show{display:flex}
+.dialog{background:var(--surface);border-radius:14px;padding:22px;width:min(560px,100%);max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.dialog h3{margin:0 0 6px}
+.dialog .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+.pick{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-top:6px;cursor:pointer}
+.pick:hover{background:var(--bg)}
+.swatches{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.sw{width:26px;height:26px;border-radius:50%;border:3px solid transparent;cursor:pointer}
+.sw.on{border-color:var(--text)}
+.note{background:var(--soft);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:14px}
+.empty{text-align:center;color:var(--muted);padding:30px}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.login{max-width:380px;margin:8vh auto;padding:0 16px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
+.toast.show{opacity:1}
+.shared{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:1px 9px;border-radius:99px;background:var(--soft);color:var(--primary);border:1px solid var(--primary)}
+.private{font-size:12px;color:var(--muted)}
+.hamb{display:none}
+@media(max-width:760px){
+ .app{grid-template-columns:1fr}
+ nav{position:fixed;left:0;top:0;bottom:0;width:240px;transform:translateX(-100%);transition:.2s;z-index:40}
+ nav.open{transform:none}
+ .hamb{display:inline-flex}
+ main{padding:16px}
+ .split{grid-template-columns:1fr}
+ .item .actions{opacity:1}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="overlay" id="ov"><div class="dialog" id="dlg" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- Farb-Logik (F-18): größter Mindestabstand in OKLab ---------- */
+function hex2rgb(h){return [1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255)}
+function lin(c){return c<=.04045?c/12.92:Math.pow((c+.055)/1.055,2.4)}
+function oklab(hex){const [r,g,b]=hex2rgb(hex).map(lin);
+ const l=Math.cbrt(.4122214708*r+.5363325363*g+.0514459929*b),m=Math.cbrt(.2119034982*r+.6806995451*g+.1073969566*b),s=Math.cbrt(.0883024619*r+.2817188376*g+.6299787005*b);
+ return [.2104542553*l+.793617785*m-.0040720468*s,1.9779984951*l-2.428592205*m+.4505937099*s,.0259040371*l+.7827717662*m-.808675766*s]}
+function hsl2hex(h,s,l){s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));
+ return '#'+[f(0),f(8),f(4)].map(x=>Math.round(x*255).toString(16).padStart(2,'0')).join('')}
+const CANDIDATES=[];for(let h=0;h<360;h+=10){CANDIDATES.push(hsl2hex(h,65,42));CANDIDATES.push(hsl2hex(h,70,32))}
+function distinctColor(existing){
+ if(!existing.length)return '#2563eb';
+ const ex=existing.map(oklab);let best=null,bd=-1;
+ for(const c of CANDIDATES){const o=oklab(c);let md=1e9;
+  for(const e of ex){md=Math.min(md,Math.hypot(o[0]-e[0],o[1]-e[1],o[2]-e[2]))}
+  if(md>bd){bd=md;best=c}}
+ return best}
+const SWATCHES=['#2563eb','#dc2626','#16a34a','#d97706','#9333ea','#0891b2','#db2777','#65a30d','#475569','#7c2d12'];
+
+/* ---------- Daten ---------- */
+let uid=100;const id=()=>++uid;
+const S={
+ user:{name:'Kevin',email:'kevin@example.org',lang:'de',theme:'light',trash:30},
+ tags:[{id:1,name:'Reisen',color:'#2563eb'},{id:2,name:'Outdoor',color:'#16a34a'},{id:3,name:'Haushalt',color:'#d97706'}],
+ templates:[
+  {id:1,title:'Tagesausflug',tags:[1],items:[{t:'Proviant & Getränke',c:[{t:'Wasser (2 l pro Person)'},{t:'Snacks'}]},{t:'Rucksack packen',c:[{t:'Sonnencreme'},{t:'Regenjacke'},{t:'Erste-Hilfe-Set'}]},{t:'Route prüfen'}]},
+  {id:2,title:'Übernachtung',tags:[1],items:[{t:'Unterkunft bestätigen'},{t:'Kulturbeutel',c:[{t:'Zahnbürste'},{t:'Duschgel'}]},{t:'Wechselkleidung'}]},
+  {id:3,title:'Therme',tags:[1],items:[{t:'Badesachen'},{t:'Handtuch'},{t:'Badeschlappen'}]},
+  {id:4,title:'Wandern',tags:[1,2],items:[{t:'Wanderschuhe',c:[{t:'Socken'},{t:'Blasenpflaster'}]},{t:'Wanderkarte / GPS'},{t:'Wetterbericht'}]},
+  {id:5,title:'Wohnung putzen',tags:[3],items:[{t:'Küche',c:[{t:'Herd',c:[{t:'Kochfelder'},{t:'Backofen'}]},{t:'Kühlschrank'}]},{t:'Bad'},{t:'Staubsaugen'}]}],
+ runs:[],trash:[]
+};
+function mk(items){return items.map(i=>({id:id(),t:i.t,done:false,c:mk(i.c||[])}))}
+function sectionOf(tpl){return {id:id(),title:tpl.title,items:mk(tpl.items)}}
+function addRun(title,tplIds,status){const r={id:id(),title,status:status||'active',sections:tplIds.map(i=>sectionOf(S.templates.find(t=>t.id===i))),share:null,changed:new Date()};S.runs.push(r);return r}
+const r1=addRun('Ausflug Füssen mit Flo',[1,2,3,4]);
+function walk(items,fn){(items||[]).forEach(i=>{fn(i);walk(i.c,fn)})}
+let n=0;walk(r1.sections[0].items,i=>{if(n++<4)i.done=true});walk(r1.sections[2].items,i=>i.done=true);
+const r2=addRun('Frühjahrsputz',[5]);r2.share={token:'k3j9x0a8q2m7',access:'password',perm:'edit'};r1.share={token:'p0o9i8u7y6t5',access:'anyone',perm:'view'};walk(r2.sections[0].items,i=>{if(n++%3==0)i.done=true});
+addRun('Thermenbesuch Samstag',[3]);
+const r4=addRun('Skiwochenende 2025',[2],'archived');r4.sections.forEach(s=>walk(s.items,i=>i.done=true));
+
+/* ---------- Hilfen ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function count(items){let a=0,d=0;walk(items,i=>{a++;if(i.done)d++});return[d,a]}
+function runCount(r){let d=0,a=0;r.sections.forEach(s=>{const[x,y]=count(s.items);d+=x;a+=y});return[d,a]}
+function bar(d,a){const p=a?Math.round(d/a*100):0;return `<div class="bar ${p==100?'done':''}" title="${d} von ${a}"><i style="width:${p}%"></i></div>`}
+function tagHtml(ids){return ids.map(i=>{const t=S.tags.find(x=>x.id===i);return t?`<span class="tag" style="background:${t.color}">${esc(t.name)}</span>`:''}).join(' ')}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.x);toast.x=setTimeout(()=>t.classList.remove('show'),2200)}
+function dialog(html){$('#dlg').innerHTML=html;$('#ov').classList.add('show')}
+function closeDlg(){$('#ov').classList.remove('show')}
+$('#ov').addEventListener('click',e=>{if(e.target.id=='ov')closeDlg()});
+document.addEventListener('keydown',e=>{if(e.key=='Escape')closeDlg()});
+const fmt=d=>d.toLocaleDateString('de-DE');
+function daysLeft(t){return S.user.trash?Math.max(0,S.user.trash-Math.floor((Date.now()-t.at)/864e5)):null}
+
+/* ---------- Router ---------- */
+let view='login',state={};
+function go(v,s){view=v;state=s||{};try{history.replaceState(null,'','#'+v)}catch(e){}render();window.scrollTo(0,0);$('nav')&&$('nav').classList.remove('open')}
+function render(){
+ document.documentElement.dataset.theme=S.user.theme=='system'?(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):S.user.theme;
+ if(view=='login'||view=='forgot'){$('#root').innerHTML=loginView();return}
+ const cnt=k=>S.runs.filter(r=>r.status==k).length;
+ const act=v=>view==v?'active':'';
+ $('#root').innerHTML=`<div class="app"><nav aria-label="Hauptnavigation">
+ <h1>✅ Checklisten</h1>
+ <a class="${act('home')||(view=='run'?'active':'')}" onclick="go('home')">Aktuelle Durchführungen <span class="badge">${cnt('active')}</span></a>
+ <a class="${act('templates')||(view=='template'?'active':'')}" onclick="go('templates')">Vorlagen <span class="badge">${S.templates.length}</span></a>
+ <a class="${act('archive')}" onclick="go('archive')">Archiv <span class="badge">${cnt('archived')}</span></a>
+ <a class="${act('trash')}" onclick="go('trash')">Papierkorb <span class="badge">${S.trash.length}</span></a>
+ <span class="sp"></span>
+ <a class="${act('profile')}" onclick="go('profile')">👤 ${esc(S.user.name)}</a>
+ <a onclick="go('login')">Abmelden</a></nav>
+ <main><button class="btn hamb" style="margin-bottom:12px" onclick="document.querySelector('nav').classList.toggle('open')" aria-label="Menü">☰ Menü</button>${({home:homeView,templates:templatesView,template:templateView,run:runView,archive:archiveView,trash:trashView,profile:profileView})[view]()}</main></div>`;
+}
+function loginView(){return view=='forgot'?`<div class="login card"><h2>Passwort vergessen</h2><p class="muted">Wir senden dir einen Link zum Zurücksetzen (nur wenn SMTP konfiguriert ist).</p><label>E-Mail</label><input type="email" value="kevin@example.org"><div class="row" style="margin-top:16px"><button class="btn primary" onclick="toast('Link gesendet (Mockup)');go('login')">Link senden</button><button class="btn" onclick="go('login')">Zurück</button></div></div>`:
+ `<div class="login card"><h2>✅ Checklisten-Management</h2><label>E-Mail</label><input type="email" value="kevin@example.org"><label>Passwort</label><input type="password" value="correct horse battery"><div class="row" style="margin-top:16px"><button class="btn primary" onclick="go('home')">Anmelden</button><button class="btn" onclick="go('forgot')">Passwort vergessen</button></div><p class="muted" style="margin-top:16px">Noch kein Konto? <a href="#" onclick="toast('Registrierung (per Docker abschaltbar)');return false">Registrieren</a> · <a href="#" onclick="go('home');return false">Mit SSO anmelden</a></p></div>`}
+
+/* ---------- Startseite ---------- */
+function shareBadge(r){const s=r.share;return s?`<span class="shared" title="Mit anderen geteilt">🔗 Geteilt · ${s.perm=='edit'?'bearbeiten':'ansehen'}${s.access=='password'?' · 🔒 Passwort':''}</span>`:'<span class="private">Nicht geteilt</span>'}
+let shareFilter='all';
+function runCard(r){const[d,a]=runCount(r);return `<div class="card row"><div class="grow"><div class="row" style="gap:8px"><a class="title" href="#" style="color:inherit;text-decoration:none" onclick="go('run',{id:${r.id}});return false">${esc(r.title)}</a>${shareBadge(r)}</div>
+ <div class="muted">${r.sections.map(s=>esc(s.title)).join(' · ')||'Keine Abschnitte'}</div></div>
+ <div style="width:170px">${bar(d,a)}<div class="muted">${d} von ${a} erledigt</div></div>
+ <button class="btn sm" onclick="go('run',{id:${r.id}})">Öffnen</button></div>`}
+function homeView(){const act=S.runs.filter(r=>r.status=='active'&&(shareFilter=='all'||(shareFilter=='shared')==!!r.share));
+ return `<div class="head"><h2>Aktuelle Durchführungen</h2><button class="btn primary plus" onclick="newRunDlg()" aria-label="Neue Durchführung" title="Neue Durchführung">+</button></div>
+ <div class="toolbar"><input type="text" placeholder="Durchführungen suchen…" aria-label="Suche">${[['all','Alle'],['shared','🔗 Geteilt'],['private','Nicht geteilt']].map(([k,l])=>`<button class="chip ${shareFilter==k?'on':''}" onclick="shareFilter='${k}';render()">${l}</button>`).join('')}</div>
+ <div class="list">${act.map(runCard).join('')||'<div class="empty card">Keine aktiven Durchführungen. Mit + eine neue starten.</div>'}</div>`}
+function newRunDlg(){dialog(`<h3>Neue Durchführung</h3><label for="rt">Titel</label><input type="text" id="rt" placeholder="z. B. Ausflug Füssen mit Flo" autofocus>
+ <label>Vorlagen auswählen (mehrere möglich)</label>${tplPicker('np')}
+ <div class="foot"><button class="btn" onclick="closeDlg()">Abbrechen</button><button class="btn primary" onclick="createRun()">Anlegen</button></div>`)}
+function tplPicker(name){return `<input type="text" placeholder="Vorlagen suchen…" oninput="document.querySelectorAll('.pick').forEach(p=>p.style.display=p.dataset.t.toLowerCase().includes(this.value.toLowerCase())?'':'none')" style="margin-bottom:4px">`+
+ S.templates.map(t=>`<label class="pick" data-t="${esc(t.title)}" style="color:var(--text);font-size:15px;margin-top:6px"><input type="checkbox" name="${name}" value="${t.id}"><span class="grow">${esc(t.title)}</span>${tagHtml(t.tags)}<span class="muted">${count(t.items)[1]} Punkte</span></label>`).join('')}
+function picked(name){return[...document.querySelectorAll(`input[name=${name}]:checked`)].map(i=>+i.value)}
+function createRun(){const t=$('#rt').value.trim();if(!t){toast('Titel ist Pflicht');return}const r=addRun(t,picked('np'));closeDlg();toast('Durchführung angelegt');go('run',{id:r.id})}
+
+/* ---------- Durchführung ---------- */
+function itemHtml(i,ro,sid){const[d,a]=count(i.c);return `<div class="item"><input type="checkbox" ${i.done?'checked':''} ${ro?'disabled':''} onchange="tick(${i.id},this.checked)" aria-label="${esc(i.t)}">
+ <div class="grow"><span class="t ${i.done?'done':''}">${esc(i.t)}</span>${a?` <span class="muted">(${d}/${a})</span>`:''}${i.c.length?`<div class="sub">${i.c.map(c=>itemHtml(c,ro,sid)).join('')}</div>`:''}</div>
+ ${ro?'':`<span class="actions"><button class="btn sm icon" title="Unterpunkt" onclick="addItemDlg(${i.id})">＋</button><button class="btn sm icon" title="Bearbeiten" onclick="toast('Bearbeiten (Mockup)')">✎</button><button class="btn sm icon danger" title="Löschen" onclick="toast('Punkt gelöscht (Mockup)')">🗑</button></span>`}</div>`}
+function findItem(items,iid){let f=null;walk(items,i=>{if(i.id==iid)f=i});return f}
+function tick(iid,v){const r=S.runs.find(r=>r.id==state.id);r.sections.forEach(s=>{const i=findItem(s.items,iid);if(i)i.done=v});r.changed=new Date();render()}
+function runView(){const r=S.runs.find(r=>r.id==state.id);if(!r)return'';const[d,a]=runCount(r);const ro=r.status!='active';
+ const st={active:'Aktiv',archived:'Archiviert'}[r.status];
+ let btns='';
+ if(r.status=='active')btns=`<button class="btn" onclick="addTplDlg()">＋ Vorlage hinzufügen</button><button class="btn" onclick="shareDlg()">🔗 Teilen${r.share?' •':''}</button><button class="btn primary" onclick="finishDlg()">Beenden</button>`;
+ else{btns=`<button class="btn primary" onclick="setStatus('active')">Wieder öffnen</button>`}
+ btns+=`<button class="btn danger" onclick="deleteRun(${r.id})">🗑 Löschen</button>`;
+ return `<div class="head"><button class="btn sm" onclick="go('${r.status=='archived'?'archive':'home'}')">← Zurück</button><h2>${esc(r.title)} <span class="status">${st}</span> ${r.status=='active'?shareBadge(r):''}</h2></div>
+ <div class="card row" style="margin-bottom:14px"><div style="width:240px">${bar(d,a)}<div class="muted">${d} von ${a} erledigt</div></div><div class="grow"></div>${btns}</div>
+ ${ro?'<div class="note">Diese Durchführung ist archiviert: schreibgeschützt und nicht teilbar. „Wieder öffnen“ macht sie wieder aktiv.</div>':''}
+ ${r.sections.map(s=>{const[x,y]=count(s.items);return `<details class="sec" open><summary><span class="grow">${esc(s.title)}</span><span class="muted" style="font-weight:400">${x}/${y}</span></summary><div class="items">${s.items.map(i=>itemHtml(i,ro)).join('')}${ro?'':`<button class="btn sm" style="margin-top:6px" onclick="addItemDlg(null,${s.id})">＋ Punkt hinzufügen</button>`}</div></details>`}).join('')||'<div class="empty card">Noch keine Abschnitte. Mit „Vorlage hinzufügen“ starten.</div>'}`}
+function addTplDlg(){dialog(`<h3>Vorlagen hinzufügen</h3><p class="muted">Die Punkte werden als neue Abschnitte angehängt. Dieselbe Vorlage kann mehrfach hinzugefügt werden.</p>${tplPicker('ap')}<div class="foot"><button class="btn" onclick="closeDlg()">Abbrechen</button><button class="btn primary" onclick="addTpls()">Hinzufügen</button></div>`)}
+function addTpls(){const r=S.runs.find(r=>r.id==state.id);const p=picked('ap');p.forEach(i=>r.sections.push(sectionOf(S.templates.find(t=>t.id===i))));closeDlg();toast(p.length+' Abschnitt(e) hinzugefügt');render()}
+function addItemDlg(parent,sec){dialog(`<h3>${parent?'Unterpunkt':'Punkt'} hinzufügen</h3><label>Titel</label><input type="text" id="ni" autofocus><div class="foot"><button class="btn" onclick="closeDlg()">Abbrechen</button><button class="btn primary" onclick="addItem(${parent||'null'},${sec||'null'})">Hinzufügen</button></div>`)}
+function addItem(p,sec){const v=$('#ni').value.trim();if(!v){toast('Titel ist Pflicht');return}const r=S.runs.find(r=>r.id==state.id);const it={id:id(),t:v,done:false,c:[]};
+ if(p){r.sections.forEach(s=>{const f=findItem(s.items,p);if(f)f.c.push(it)})}else r.sections.find(s=>s.id==sec).items.push(it);closeDlg();render()}
+function finishDlg(){const r=S.runs.find(r=>r.id==state.id),[d,a]=runCount(r);
+ dialog(`<h3>Durchführung beenden</h3>${d<a?`<div class="note">⚠ Es sind noch <b>${a-d}</b> Punkte offen.</div>`:'<p class="muted">Alle Punkte sind erledigt. 🎉</p>'}
+ <p>Was soll mit „${esc(r.title)}“ passieren?</p>
+ <div class="list"><button class="btn" style="justify-content:flex-start;text-align:left" onclick="doDeleteRun(${r.id})"><span><b>Abschließen</b> – wird gelöscht (Papierkorb, wiederherstellbar)</span></button>
+ <button class="btn" style="justify-content:flex-start;text-align:left" onclick="setStatus('archived')"><span><b>Archivieren</b> – dauerhaft aufbewahren${r.share?' <span class="muted">(Freigabelink wird widerrufen)</span>':''}</span></button></div>
+ <div class="foot"><button class="btn" onclick="closeDlg()">Abbrechen</button></div>`)}
+function setStatus(s){const r=S.runs.find(r=>r.id==state.id);r.status=s;if(s=='archived')r.share=null;closeDlg();toast({active:'Wieder geöffnet',archived:'Archiviert'}[s]);if(s=='archived')go('archive');else render()}
+function deleteRun(i){const r=S.runs.find(r=>r.id==i);dialog(`<h3>In den Papierkorb?</h3><p>„${esc(r.title)}“ kann bis zur automatischen Leerung wiederhergestellt werden.</p><div class="foot"><button class="btn" onclick="closeDlg()">Abbrechen</button><button class="btn danger" onclick="doDeleteRun(${i})">Löschen</button></div>`)}
+function doDeleteRun(i){const r=S.runs.find(r=>r.id==i);S.runs=S.runs.filter(x=>x.id!=i);S.trash.push({kind:'run',obj:r,at:Date.now()});closeDlg();toast('In den Papierkorb verschoben');go('home')}
+function shareDlg(){const r=S.runs.find(r=>r.id==state.id),s=r.share;
+ dialog(`<h3>Durchführung teilen</h3>${s?`<div class="note">Link aktiv: <code>https://checklisten.example.org/s/${s.token}</code> <button class="btn sm" onclick="toast('Link kopiert')">Kopieren</button></div>`:'<p class="muted">Noch kein Link erstellt.</p>'}
+ <label>Zugriff</label><select id="sa"><option value="anyone" ${s&&s.access=='anyone'?'selected':''}>Jeder mit dem Link</option><option value="password" ${s&&s.access=='password'?'selected':''}>Link + Passwort</option></select>
+ <label>Passwort (nur bei „Link + Passwort“)</label><input type="password" id="sp" placeholder="••••••••">
+ <label>Berechtigung</label><select id="sm"><option value="view">Nur ansehen</option><option value="edit" ${s&&s.perm=='edit'?'selected':''}>Ansehen und bearbeiten</option></select>
+ <div class="foot">${s?'<button class="btn danger" onclick="unshare()">Link widerrufen</button>':''}<button class="btn" onclick="closeDlg()">Schließen</button><button class="btn primary" onclick="doShare()">${s?'Speichern':'Link erstellen'}</button></div>`)}
+function doShare(){const r=S.runs.find(r=>r.id==state.id);r.share={token:(r.share&&r.share.token)||Math.random().toString(36).slice(2,14)+Math.random().toString(36).slice(2,14),access:$('#sa').value,perm:$('#sm').value};toast('Freigabelink gespeichert');render();shareDlg()}
+function unshare(){S.runs.find(r=>r.id==state.id).share=null;toast('Link widerrufen');closeDlg();render()}
+
+/* ---------- Vorlagen ---------- */
+let tagFilter=null;
+function templatesView(){const l=S.templates.filter(t=>!tagFilter||t.tags.includes(tagFilter));
+ return `<div class="head"><h2>Vorlagen</h2><button class="btn" onclick="tagsDlg()">🏷 Tags verwalten</button><button class="btn primary" onclick="newTpl()">＋ Neue Vorlage</button></div>
+ <div class="toolbar"><input type="text" placeholder="Vorlagen suchen…" aria-label="Suche"><button class="chip ${!tagFilter?'on':''}" onclick="tagFilter=null;render()">Alle</button>${S.tags.map(t=>`<button class="chip ${tagFilter==t.id?'on':''}" onclick="tagFilter=${t.id};render()"><span style="color:${t.color}">●</span> ${esc(t.name)}</button>`).join('')}</div>
+ <div class="list">${l.map(t=>`<div class="card row"><div class="grow"><a class="title" href="#" style="color:inherit;text-decoration:none" onclick="go('template',{id:${t.id}});return false">${esc(t.title)}</a><div style="margin-top:4px">${tagHtml(t.tags)||'<span class="muted">Keine Tags</span>'}</div></div><span class="muted">${count(t.items)[1]} Punkte</span>
+ <button class="btn sm" onclick="go('template',{id:${t.id}})">Bearbeiten</button><button class="btn sm" onclick="dupTpl(${t.id})">Duplizieren</button><button class="btn sm danger" onclick="delTpl(${t.id})">Löschen</button></div>`).join('')||'<div class="empty card">Keine Vorlagen.</div>'}</div>`}
+function newTpl(){const t={id:id(),title:'Neue Vorlage',tags:[],items:[]};S.templates.push(t);go('template',{id:t.id})}
+function dupTpl(i){const t=S.templates.find(x=>x.id==i);S.templates.push({...JSON.parse(JSON.stringify(t)),id:id(),title:t.title+' (Kopie)'});toast('Dupliziert');render()}
+function delTpl(i){const t=S.templates.find(x=>x.id==i);S.templates=S.templates.filter(x=>x.id!=i);S.trash.push({kind:'tpl',obj:t,at:Date.now()});toast('In den Papierkorb verschoben');render()}
+function tItem(i,lvl){return `<div class="item"><span class="grip" title="Verschieben">⋮⋮</span><div class="grow"><span>${esc(i.t)}</span>${i.c&&i.c.length?`<div class="sub">${i.c.map(c=>tItem(c,lvl+1)).join('')}</div>`:''}</div><span class="actions"><button class="btn sm icon" title="Unterpunkt hinzufügen" onclick="toast('Unterpunkt (Mockup)')">＋</button><button class="btn sm icon" title="Bearbeiten" onclick="toast('Bearbeiten (Mockup)')">✎</button><button class="btn sm icon danger" title="Löschen" onclick="toast('Gelöscht (Mockup)')">🗑</button></span></div>`}
+function templateView(){const t=S.templates.find(x=>x.id==state.id);
+ return `<div class="head"><button class="btn sm" onclick="go('templates')">← Zurück</button><h2>Vorlage bearbeiten</h2><button class="btn primary" onclick="saveTpl()">Speichern</button></div>
+ <div class="card"><label for="tt" style="margin-top:0">Titel</label><input type="text" id="tt" value="${esc(t.title)}"><label>Beschreibung</label><textarea rows="2" placeholder="Optional"></textarea>
+ <label>Tags</label><div class="row">${S.tags.map(g=>`<label class="chip ${t.tags.includes(g.id)?'on':''}" style="margin:0;cursor:pointer;color:inherit"><input type="checkbox" ${t.tags.includes(g.id)?'checked':''} onchange="toggleTplTag(${t.id},${g.id},this.checked)" style="display:none"><span style="color:${g.color}">●</span> ${esc(g.name)}</label>`).join('')}<button class="btn sm" onclick="newTagDlg(${t.id})">＋ Neuer Tag</button></div></div>
+ <h3 style="margin:22px 0 8px">Punkte <span class="muted" style="font-weight:400">– per Drag-and-Drop umsortieren, beliebig tief verschachtelbar</span></h3>
+ <div class="card">${t.items.map(i=>tItem(i,0)).join('')||'<div class="muted">Noch keine Punkte.</div>'}<button class="btn sm" style="margin-top:8px" onclick="toast('Punkt hinzufügen (Mockup)')">＋ Punkt hinzufügen</button></div>`}
+function saveTpl(){const t=S.templates.find(x=>x.id==state.id);t.title=$('#tt').value||t.title;toast('Gespeichert');go('templates')}
+function toggleTplTag(ti,gi,on){const t=S.templates.find(x=>x.id==ti);t.tags=on?[...t.tags,gi]:t.tags.filter(x=>x!=gi);t.title=$('#tt').value;render()}
+
+/* ---------- Tags ---------- */
+function newTagDlg(tplId){const col=distinctColor(S.tags.map(t=>t.color));
+ dialog(`<h3>Neuer Tag</h3><label>Name</label><input type="text" id="tn" autofocus>
+ <label>Farbe <span class="muted">(automatisch vorgeschlagen: größter Abstand zu bestehenden Tags)</span></label>
+ <div class="swatches" id="sws"></div><input type="hidden" id="tc" value="${col}">
+ <div class="foot"><button class="btn" onclick="closeDlg()">Abbrechen</button><button class="btn primary" onclick="addTag(${tplId||'null'})">Anlegen</button></div>`);
+ drawSw(col,[col,...SWATCHES])}
+function drawSw(sel,list){$('#sws').innerHTML=list.map(c=>`<span class="sw ${c==sel?'on':''}" style="background:${c}" tabindex="0" role="button" aria-label="Farbe ${c}" onclick="$('#tc').value='${c}';drawSw('${c}',${JSON.stringify(list).replace(/"/g,"'")})"></span>`).join('')+`<input type="color" value="${sel}" aria-label="Eigene Farbe" onchange="$('#tc').value=this.value;drawSw(this.value,${JSON.stringify(list).replace(/"/g,"'")})" style="width:34px;height:28px;padding:0;border:none;background:none">`}
+function addTag(tplId){const n=$('#tn').value.trim();if(!n){toast('Name ist Pflicht');return}const g={id:id(),name:n,color:$('#tc').value};S.tags.push(g);if(tplId){const t=S.templates.find(x=>x.id==tplId);t.tags.push(g.id)}closeDlg();toast('Tag angelegt');render()}
+function tagsDlg(){dialog(`<h3>Tags verwalten</h3><p class="muted">Tags gibt es nur für Vorlagen.</p><div class="list">${S.tags.map(g=>`<div class="row"><span class="tag" style="background:${g.color}">${esc(g.name)}</span><span class="grow"></span><input type="color" value="${g.color}" aria-label="Farbe ändern" onchange="S.tags.find(x=>x.id==${g.id}).color=this.value;render();tagsDlg()" style="width:34px;height:28px;padding:0;border:none;background:none"><button class="btn sm danger" onclick="S.tags=S.tags.filter(x=>x.id!=${g.id});S.templates.forEach(t=>t.tags=t.tags.filter(i=>i!=${g.id}));render();tagsDlg()">Löschen</button></div>`).join('')}</div>
+ <div class="foot"><button class="btn" onclick="closeDlg();newTagDlg()">＋ Neuer Tag</button><button class="btn primary" onclick="closeDlg()">Fertig</button></div>`)}
+
+/* ---------- Archiv & Papierkorb ---------- */
+function archiveView(){const l=S.runs.filter(r=>r.status=='archived');
+ return `<div class="head"><h2>Archiv</h2></div><div class="note">Das Archiv wird nie automatisch geleert. Gelöschte Einträge landen im Papierkorb.</div>
+ <div class="toolbar"><input type="text" placeholder="Archiv durchsuchen…" aria-label="Suche"></div>
+ <div class="list">${l.map(r=>{const[d,a]=runCount(r);return `<div class="card row"><div class="grow"><a class="title" href="#" style="color:inherit;text-decoration:none" onclick="go('run',{id:${r.id}});return false">${esc(r.title)}</a><div class="muted">${r.sections.map(s=>esc(s.title)).join(' · ')}</div></div><div style="width:150px">${bar(d,a)}<div class="muted">${d}/${a}</div></div><button class="btn sm" onclick="go('run',{id:${r.id}})">Ansehen</button><button class="btn sm" onclick="state.id=${r.id};setStatus('active')">Wieder öffnen</button><button class="btn sm danger" onclick="state.id=${r.id};deleteRun(${r.id})">Löschen</button></div>`}).join('')||'<div class="empty card">Das Archiv ist leer.</div>'}</div>`}
+function trashView(){const k=S.user.trash;
+ return `<div class="head"><h2>Papierkorb</h2><button class="btn danger" onclick="emptyTrash()" ${S.trash.length?'':'disabled'}>Papierkorb leeren</button></div>
+ <div class="note">Einträge werden ${k?`nach <b>${k} Tagen</b> automatisch endgültig gelöscht`:'nie automatisch gelöscht'} (einstellbar im Profil).</div>
+ <div class="list">${S.trash.map((t,i)=>`<div class="card row"><div class="grow"><span class="title">${esc(t.obj.title)}</span> <span class="status">${t.kind=='tpl'?'Vorlage':'Durchführung'}</span><div class="muted">Gelöscht am ${fmt(new Date(t.at))}${k?` · endgültig weg am ${fmt(new Date(t.at+k*864e5))}`:''}</div></div><button class="btn sm" onclick="restore(${i})">Wiederherstellen</button><button class="btn sm danger" onclick="S.trash.splice(${i},1);toast('Endgültig gelöscht');render()">Endgültig löschen</button></div>`).join('')||'<div class="empty card">Der Papierkorb ist leer.</div>'}</div>`}
+function restore(i){const t=S.trash.splice(i,1)[0];if(t.kind=='tpl')S.templates.push(t.obj);else S.runs.push(t.obj);toast('Wiederhergestellt');render()}
+function emptyTrash(){dialog(`<h3>Papierkorb leeren?</h3><p>${S.trash.length} Einträge werden endgültig gelöscht.</p><div class="foot"><button class="btn" onclick="closeDlg()">Abbrechen</button><button class="btn danger" onclick="S.trash=[];closeDlg();toast('Papierkorb geleert');render()">Endgültig löschen</button></div>`)}
+
+/* ---------- Profil ---------- */
+function sharedList(){const l=S.runs.filter(r=>r.share);
+ return (l.length?`<div class="list">${l.map(r=>`<div class="row" style="border:1px solid var(--border);border-radius:10px;padding:10px"><div class="grow"><a class="title" href="#" style="color:inherit;text-decoration:none" onclick="go('run',{id:${r.id}});return false">${esc(r.title)}</a><div class="muted">${r.share.access=='password'?'🔒 Mit Passwort':'Jeder mit dem Link'} · ${r.share.perm=='edit'?'Ansehen und bearbeiten':'Nur ansehen'}</div></div>
+ <button class="btn sm" onclick="toast('Link kopiert')">Link kopieren</button><button class="btn sm" onclick="state.id=${r.id};shareDlg()">Einstellungen</button><button class="btn sm danger" onclick="unshareDlg(${r.id})">Zurückziehen</button></div>`).join('')}</div><div class="row" style="margin-top:10px"><button class="btn sm danger" onclick="unshareAllDlg()">Alle Freigaben zurückziehen</button></div>`:'<p class="muted">Du teilst aktuell keine Durchführung. Teilen ist in einer aktiven Durchführung über „Teilen“ möglich.</p>')+(S.trash.some(t=>t.kind=='run'&&t.obj.share)?'<p class="muted" style="margin-top:8px">Hinweis: Freigaben von Durchführungen im Papierkorb sind inaktiv.</p>':'')}
+function unshareDlg(i){const r=S.runs.find(x=>x.id==i);dialog(`<h3>Teilen zurückziehen?</h3><p>Der Link zu „${esc(r.title)}“ funktioniert danach nicht mehr.</p><div class="foot"><button class="btn" onclick="closeDlg()">Abbrechen</button><button class="btn danger" onclick="S.runs.find(x=>x.id==${i}).share=null;closeDlg();toast('Freigabe zurückgezogen');render()">Zurückziehen</button></div>`)}
+function unshareAllDlg(){dialog(`<h3>Alle Freigaben zurückziehen?</h3><p>Alle ${S.runs.filter(r=>r.share).length} Links funktionieren danach nicht mehr.</p><div class="foot"><button class="btn" onclick="closeDlg()">Abbrechen</button><button class="btn danger" onclick="S.runs.forEach(r=>r.share=null);closeDlg();toast('Alle Freigaben zurückgezogen');render()">Zurückziehen</button></div>`)}
+function profileView(){const u=S.user;
+ return `<div class="head"><h2>Profil</h2></div><div class="split">
+ <div class="card"><h3 style="margin-top:0">Konto</h3><label>Anzeigename</label><input type="text" value="${esc(u.name)}"><label>E-Mail</label><input type="email" value="${esc(u.email)}">
+ <label>Sprache</label><select onchange="S.user.lang=this.value;toast('Sprache gespeichert (Mockup: nur Deutsch)')"><option value="de">Deutsch</option><option value="en">English</option></select>
+ <label>Design</label><select onchange="S.user.theme=this.value;render()"><option value="light" ${u.theme=='light'?'selected':''}>Hell</option><option value="dark" ${u.theme=='dark'?'selected':''}>Dunkel</option><option value="system" ${u.theme=='system'?'selected':''}>System</option></select>
+ <label>Papierkorb automatisch leeren nach</label><select onchange="S.user.trash=+this.value;toast('Gespeichert')">${[7,30,90,365,0].map(d=>`<option value="${d}" ${u.trash==d?'selected':''}>${d?d+' Tagen':'Nie'}</option>`).join('')}</select>
+ <div class="row" style="margin-top:14px"><button class="btn primary" onclick="toast('Gespeichert')">Speichern</button></div></div>
+ <div class="list"><div class="card"><h3 style="margin-top:0">Geteilte Durchführungen</h3>${sharedList()}</div>
+ <div class="card"><h3 style="margin-top:0">Passwort ändern</h3><label>Aktuelles Passwort</label><input type="password"><label>Neues Passwort <span class="muted">(mind. 12 Zeichen)</span></label><input type="password"><div class="row" style="margin-top:14px"><button class="btn primary" onclick="toast('Passwort geändert')">Ändern</button></div></div>
+ <div class="card"><h3 style="margin-top:0">Zwei-Faktor-Authentifizierung</h3><p class="muted">Schützt dein Konto zusätzlich per Authenticator-App.</p><button class="btn" onclick="toast('2FA-Einrichtung (Mockup)')">Einrichten</button></div>
+ <div class="card"><h3 style="margin-top:0">API-Tokens</h3><div class="row"><div class="grow"><b>Home-Assistant</b><div class="muted">ck_8f3a… · lesen+schreiben · zuletzt gestern</div></div><button class="btn sm danger" onclick="toast('Token widerrufen')">Widerrufen</button></div><button class="btn" style="margin-top:10px" onclick="toast('Token anlegen (Mockup)')">＋ Neues Token</button> <a href="#" onclick="toast('Swagger unter /api/docs');return false" class="muted">API-Doku</a></div>
+ <div class="card"><h3 style="margin-top:0">Daten</h3><div class="row"><button class="btn" onclick="toast('Export als JSON (Mockup)')">Alles exportieren</button><button class="btn" onclick="toast('Import (Mockup)')">Importieren</button><button class="btn danger" onclick="toast('Konto löschen (Mockup)')">Konto löschen</button></div></div></div></div>`}
+
+window.addEventListener('hashchange',()=>{});
+render();
+</script>
+</body>
+</html>

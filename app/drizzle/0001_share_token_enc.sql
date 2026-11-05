@@ -1,0 +1,1 @@
+ALTER TABLE `run_shares` ADD `token_enc` text;
