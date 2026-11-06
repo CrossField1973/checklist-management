@@ -51,7 +51,7 @@ describe("Barrierefreiheit (axe-core, WCAG 2.2 AA)", () => {
     ["Anmeldung", "/login", "Anmelden"],
     ["Registrierung", "/register", "Registrieren"],
     ["Startseite", "/", "Ausflug"],
-    ["Durchführung", "/runs/r1", "Tagesausflug"],
+    ["Checkliste", "/runs/r1", "Tagesausflug"],
     ["Archiv", "/archive", "Archiv"],
     ["Vorlagenliste", "/templates", "Tagesausflug"],
     ["Vorlageneditor", "/templates/t1", "Regenjacke"],
@@ -67,10 +67,10 @@ describe("Barrierefreiheit (axe-core, WCAG 2.2 AA)", () => {
     await expectClean();
   });
 
-  it("geöffnete Dialoge (Neue Durchführung, Teilen, Beenden) haben keine Verstöße", async () => {
+  it("geöffnete Dialoge (Neue Checkliste, Teilen, Beenden) haben keine Verstöße", async () => {
     api();
     const { ui } = renderApp("/");
-    await ui.click(await screen.findByRole("button", { name: /Neue Durchführung/ }));
+    await ui.click(await screen.findByRole("button", { name: /Neue Checkliste/ }));
     await screen.findByRole("dialog");
     await waitFor(async () => expect(screen.getByText(/1 Vorlage|Vorlagen gewählt/)).toBeInTheDocument());
     await expectClean();

@@ -104,7 +104,7 @@ export default function TemplatesPage() {
 
   const total = list.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const date = (ms: number) => new Date(ms).toLocaleDateString(i18n.language);
+  const date = (ms: number) => new Date(ms).toLocaleDateString(i18n.language, { dateStyle: "medium" });
 
   return (
     <>

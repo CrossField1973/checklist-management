@@ -7,14 +7,18 @@ import type { TemplateSummary } from "../../api/types";
 import { Spinner } from "../../components/ui";
 
 /** Mehrfachauswahl von Vorlagen; die Klickreihenfolge bestimmt die Reihenfolge der Abschnitte (F-21, F-22). */
-export function TemplatePicker({ enabled, selected, onChange }: { enabled: boolean; selected: string[]; onChange: (ids: string[]) => void }) {
+export function TemplatePicker({ enabled, selected, onChange }: { enabled: boolean; selected: string[]; onChange: (ids: string[], titles: string[]) => void }) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState("");
   const templates = useQuery({
     queryKey: ["templates", "all"], enabled,
     queryFn: () => api.get<{ templates: TemplateSummary[] }>("/templates?sort=title&limit=100"),
   });
-  const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  const titleOf = (id: string) => templates.data?.templates.find((x) => x.id === id)?.title ?? "";
+  const toggle = (id: string) => {
+    const next = selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id];
+    onChange(next, next.map(titleOf));
+  };
   const list = (templates.data?.templates ?? []).filter((x) => x.title.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase()));
 
   return (

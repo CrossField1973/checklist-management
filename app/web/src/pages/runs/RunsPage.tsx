@@ -29,9 +29,16 @@ function NewRunDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [titleTouched, setTitleTouched] = useState(false);
+  const { i18n } = useTranslation();
+  const suggest = (titles: string[]) => {
+    if (titleTouched || titles.length === 0) return;
+    const day = new Date().toLocaleDateString(i18n.language, { day: "numeric", month: "short" });
+    setTitle(`${titles.length > 2 ? `${titles.slice(0, 2).join(" + ")} + …` : titles.join(" + ")} – ${day}`);
+  };
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) { setTitle(""); setSelected([]); setError(null); } }, [open]);
+  useEffect(() => { if (open) { setTitle(""); setTitleTouched(false); setSelected([]); setError(null); } }, [open]);
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -50,8 +57,10 @@ function NewRunDialog({ open, onClose }: { open: boolean; onClose: () => void })
   return (
     <Dialog open={open} onClose={onClose} title={t("runs.newTitle")}>
       <form onSubmit={create} noValidate>
-        <TextInput label={t("runs.titleLabel")} required autoFocus maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
-        <TemplatePicker enabled={open} selected={selected} onChange={setSelected} />
+        <TemplatePicker enabled={open} selected={selected} onChange={(ids, titles) => { setSelected(ids); suggest(titles); }} />
+        <div className="mt-4">
+          <TextInput label={t("runs.titleLabel")} hint={selected.length > 0 && !titleTouched ? t("runs.titleHint") : undefined} required maxLength={200} value={title} onChange={(e) => { setTitle(e.target.value); setTitleTouched(true); }} />
+        </div>
         {error && <div className="mt-3"><Alert kind="error">{error}</Alert></div>}
         <div className="mt-5 flex justify-end gap-2">
           <Button onClick={onClose}>{t("common.cancel")}</Button>
@@ -97,7 +106,7 @@ export default function RunsPage({ status }: { status: "active" | "archived" }) 
 
   const total = list.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const date = (ms: number) => new Date(ms).toLocaleDateString(i18n.language);
+  const date = (ms: number) => new Date(ms).toLocaleDateString(i18n.language, { dateStyle: "medium" });
 
   return (
     <>
@@ -109,15 +118,23 @@ export default function RunsPage({ status }: { status: "active" | "archived" }) 
       {notice && <div className="mb-3"><Alert kind="ok">{notice}</Alert></div>}
       {error && <div className="mb-3"><Alert kind="error">{error}</Alert></div>}
 
-      <div className="mb-4">
+      {((list.data?.total ?? 0) > 5 || search) && <div className="mb-4">
         <label htmlFor="run-search" className="label mt-0">{t("runs.search")}</label>
         <input id="run-search" type="search" className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("runs.searchPlaceholder")} />
-      </div>
+      </div>}
 
       {list.isPending ? <Spinner /> : (list.isError && !list.data) ? <Alert kind="error">{errorText(list.error)}</Alert> : total === 0 ? (
         <div className="card text-center">
           <p className="m-0">{debounced ? t("runs.noResults") : archived ? t("runs.archiveEmpty") : t("runs.empty")}</p>
-          {!archived && !debounced && <Button variant="primary" className="mt-3" onClick={() => setCreating(true)}>＋ {t("runs.new")}</Button>}
+          {!archived && !debounced && (
+            <>
+              <p className="hint">{t("runs.step1")}<br />{t("runs.step2")}</p>
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                <Link className="btn no-underline" to="/templates">{t("runs.newTemplate")}</Link>
+                <Button variant="primary" onClick={() => setCreating(true)}>＋ {t("runs.new")}</Button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <>

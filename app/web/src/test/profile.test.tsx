@@ -28,7 +28,7 @@ describe("Profil: Konto (F-05)", () => {
   it("zeigt alle Bereiche des Profils", async () => {
     profileApi();
     await openProfile();
-    for (const name of ["Konto", "Passwort ändern", "Zwei-Faktor-Anmeldung", "API-Token", "Geteilte Durchführungen", "Daten", "Konto löschen"]) {
+    for (const name of ["Konto", "Passwort ändern", "Zwei-Faktor-Anmeldung", "API-Token", "Geteilte Checklisten", "Daten", "Konto löschen"]) {
       expect(screen.getByRole("region", { name })).toBeInTheDocument();
     }
     expect(screen.queryByRole("region", { name: "Single Sign-on" })).not.toBeInTheDocument(); // SSO nicht konfiguriert
@@ -344,7 +344,7 @@ describe("Profil: API-Token (F-61)", () => {
   });
 });
 
-describe("Profil: Geteilte Durchführungen (F-45)", () => {
+describe("Profil: Geteilte Checklisten (F-45)", () => {
   const share = (over: Partial<ShareInfo> = {}): ShareInfo => ({
     id: "s1", runId: "r1", runTitle: "Ausflug Füssen", runStatus: "active", runDeleted: false, access: "anyone", permission: "view",
     url: "http://localhost:3000/s/TOKEN123", createdAt: 1, ...over,
@@ -354,7 +354,7 @@ describe("Profil: Geteilte Durchführungen (F-45)", () => {
     const api = profileApi();
     api.on("GET /me/shares", () => ({ body: { shares: [share(), share({ id: "s2", runId: "r2", runTitle: "Alt", access: "password", permission: "edit", runDeleted: true })] } }));
     await openProfile();
-    const items = await within(section("Geteilte Durchführungen")).findAllByRole("listitem");
+    const items = await within(section("Geteilte Checklisten")).findAllByRole("listitem");
     expect(items[0]).toHaveTextContent("Ausflug Füssen");
     expect(items[0]).toHaveTextContent("Jeder mit dem Link · Nur ansehen");
     expect(items[1]).toHaveTextContent("Link + Passwort · Ansehen und bearbeiten");
@@ -366,7 +366,7 @@ describe("Profil: Geteilte Durchführungen (F-45)", () => {
     const api = profileApi();
     api.on("GET /me/shares", () => ({ body: { shares: [share()] } }));
     const { ui } = await openProfile();
-    await ui.click(await within(section("Geteilte Durchführungen")).findByRole("button", { name: "Link kopieren" }));
+    await ui.click(await within(section("Geteilte Checklisten")).findByRole("button", { name: "Link kopieren" }));
     expect(await clipboardText()).toBe("http://localhost:3000/s/TOKEN123");
   });
 
@@ -375,7 +375,7 @@ describe("Profil: Geteilte Durchführungen (F-45)", () => {
     api.on("GET /me/shares", () => ({ body: { shares: [share({ access: "password", permission: "view" })] } }));
     api.on("PUT /runs/r1/share", ({ body }) => ({ body: { share: body } }));
     const { ui } = await openProfile();
-    await ui.click(await within(section("Geteilte Durchführungen")).findByRole("button", { name: /Einstellungen für Ausflug Füssen/ }));
+    await ui.click(await within(section("Geteilte Checklisten")).findByRole("button", { name: /Einstellungen für Ausflug Füssen/ }));
     const dialog = await screen.findByRole("dialog", { name: "Freigabe-Einstellungen" });
     expect(within(dialog).getByLabelText("Zugriff")).toHaveValue("password"); // aktuelle Werte sind vorbelegt
     await ui.selectOptions(within(dialog).getByLabelText("Berechtigung"), "edit");
@@ -383,7 +383,7 @@ describe("Profil: Geteilte Durchführungen (F-45)", () => {
     await waitFor(() => expect(api.callsTo("PUT /runs/r1/share")).toHaveLength(1));
     expect(api.callsTo("PUT /runs/r1/share")[0]!.body).toEqual({ access: "password", permission: "edit" }); // kein leeres Passwort
 
-    await ui.click(await within(section("Geteilte Durchführungen")).findByRole("button", { name: /Einstellungen für Ausflug Füssen/ }));
+    await ui.click(await within(section("Geteilte Checklisten")).findByRole("button", { name: /Einstellungen für Ausflug Füssen/ }));
     const again = await screen.findByRole("dialog");
     await ui.type(within(again).getByLabelText("Passwort für den Link"), "neues-passwort");
     await ui.click(within(again).getByRole("button", { name: "Speichern" }));
@@ -397,7 +397,7 @@ describe("Profil: Geteilte Durchführungen (F-45)", () => {
     api.on("DELETE /me/shares/s1", () => ({ status: 204 }));
     api.on("DELETE /me/shares", () => ({ body: { revoked: 2 } }));
     const { ui } = await openProfile();
-    const box = within(section("Geteilte Durchführungen"));
+    const box = within(section("Geteilte Checklisten"));
     await ui.click(await box.findByRole("button", { name: "Freigabe von Ausflug Füssen zurückziehen" }));
     const one = await screen.findByRole("dialog", { name: "Teilen zurückziehen?" });
     expect(api.callsTo("DELETE /me/shares/s1")).toHaveLength(0);
@@ -426,14 +426,14 @@ describe("Profil: Daten (F-50 bis F-52)", () => {
     await ui.click(box.getByLabelText("Oder Inhalt einfügen"));
     await ui.paste('{"templates":[{"title":"Packliste"}]}');
     await ui.click(check);
-    expect(await box.findByText(/Bereit zum Import: 1 Vorlagen, 0 Durchführungen, 2 Punkte\./)).toBeInTheDocument();
+    expect(await box.findByText(/Bereit zum Import: 1 Vorlagen, 0 Checklisten, 2 Punkte\./)).toBeInTheDocument();
     expect(box.getByText(/Vorlage „Packliste“ \(2 Punkte\)/)).toBeInTheDocument();
     expect(box.getByText("Neue Tags: Reisen")).toBeInTheDocument();
     expect(api.callsTo("POST /import")[0]!.body).toMatchObject({ format: "json", dryRun: true });
     expect(api.callsTo("POST /import")).toHaveLength(1); // die Vorschau legt nichts an
 
     await ui.click(box.getByRole("button", { name: "Jetzt importieren" }));
-    expect(await box.findByText("Importiert: 1 Vorlagen, 0 Durchführungen, 2 Punkte.")).toBeInTheDocument();
+    expect(await box.findByText("Importiert: 1 Vorlagen, 0 Checklisten, 2 Punkte.")).toBeInTheDocument();
     expect(api.callsTo("POST /import")[1]!.body).toMatchObject({ dryRun: false });
     expect(box.getByLabelText("Oder Inhalt einfügen")).toHaveValue(""); // Eingabe geleert
   });

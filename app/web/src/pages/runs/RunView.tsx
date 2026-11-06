@@ -43,6 +43,8 @@ export default function RunView() {
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const [sectionTitle, setSectionTitle] = useState("");
+  const [hideDone, setHideDone] = useState(() => { try { return localStorage.getItem("hideDone") === "1"; } catch { return false; } });
+  const toggleHideDone = (v: boolean) => { setHideDone(v); try { localStorage.setItem("hideDone", v ? "1" : "0"); } catch { /* ohne Speicher: nur für diese Sitzung */ } };
 
   const run = q.data;
   const readOnly = run?.status !== "active";
@@ -139,11 +141,19 @@ export default function RunView() {
         )}
       </div>
 
+      {r.status === "active" && r.progress.total > 0 && r.progress.done === r.progress.total && (
+        <div className="mb-3"><Alert kind="ok"><strong>{t("runs.allDone")}</strong> {t("runs.allDoneText")}</Alert></div>
+      )}
+      {r.progress.total > 0 && (
+        <label className="mb-3 flex w-fit cursor-pointer items-center gap-2 text-sm">
+          <input type="checkbox" className="h-4 w-4" checked={hideDone} onChange={(e) => toggleHideDone(e.target.checked)} /> {t("runs.hideDone")}
+        </label>
+      )}
       {readOnly && <div className="mb-3"><Alert kind="info">{t("runs.readOnly")}</Alert></div>}
       {notice && <div className="mb-3"><Alert kind="ok">{notice}</Alert></div>}
       {error && <div className="mb-3"><Alert kind="error">{error}</Alert></div>}
 
-      <RunBoard sections={r.sections} readOnly={readOnly} actions={actions} />
+      <RunBoard sections={r.sections} readOnly={readOnly} hideDone={hideDone} actions={actions} />
 
       <ShareDialog runId={id} open={dlg === "share"} onClose={() => setDlg(null)} />
 

@@ -77,6 +77,9 @@ h1, h2, h3 { line-height: 1.25; }
 .skip-link:focus { left: 8px; }
 
 @layer components {
+  .row-actions { opacity: 0; transition: opacity .12s; }
+  .row:hover .row-actions, .row:focus-within .row-actions { opacity: 1; }
+  @media (hover: none) { .row-actions { opacity: 1; } }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; min-height: 38px; }
   .btn:hover:not(:disabled) { background: var(--bg); }

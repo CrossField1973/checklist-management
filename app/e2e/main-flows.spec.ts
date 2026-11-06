@@ -11,7 +11,7 @@ async function register(page: Page, name = "Anna Muster") {
   const repeat = page.getByLabel(/wiederholen|bestätigen/i);
   if (await repeat.count()) await repeat.first().fill(PASSWORD);
   await page.getByRole("button", { name: "Registrieren" }).click();
-  await expect(page.getByRole("heading", { name: "Aktuelle Durchführungen" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Meine Checklisten" })).toBeVisible();
 }
 
 async function createTemplate(page: Page, title: string, items: string[]) {
@@ -28,13 +28,13 @@ async function createTemplate(page: Page, title: string, items: string[]) {
   }
 }
 
-test("Vorlage → Durchführung → abhaken → archivieren → wieder öffnen → abschließen → Papierkorb", async ({ page }) => {
+test("Vorlage → Checkliste → abhaken → archivieren → wieder öffnen → abschließen → Papierkorb", async ({ page }) => {
   await register(page);
   await createTemplate(page, "Tagesausflug", ["Rucksack packen", "Route prüfen"]);
 
-  // Durchführung aus der Vorlage anlegen
-  await page.getByRole("link", { name: "Aktuelle Durchführungen", exact: true }).click();
-  await page.getByRole("button", { name: /Neue Durchführung/ }).first().click();
+  // Checkliste aus der Vorlage anlegen
+  await page.getByRole("link", { name: "Meine Checklisten", exact: true }).click();
+  await page.getByRole("button", { name: /Neue Checkliste/ }).first().click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Titel").fill("Ausflug Füssen");
   await dialog.getByLabel("Tagesausflug").check();
@@ -54,7 +54,7 @@ test("Vorlage → Durchführung → abhaken → archivieren → wieder öffnen �
   await expect(page.getByRole("checkbox", { name: "Sonnenbrille" })).toBeVisible();
 
   // Archivieren → Archiv → schreibgeschützt → wieder öffnen
-  await page.getByRole("button", { name: "Beenden …" }).click();
+  await page.getByRole("button", { name: "Abschließen …" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Archivieren" }).click();
   await expect(page.getByRole("heading", { name: "Archiv", level: 1 })).toBeVisible();
   await page.getByRole("link", { name: "Ausflug Füssen" }).click();
@@ -63,7 +63,7 @@ test("Vorlage → Durchführung → abhaken → archivieren → wieder öffnen �
   await expect(page.getByRole("checkbox", { name: "Route prüfen" })).toBeEnabled();
 
   // Abschließen → Papierkorb → Wiederherstellen
-  await page.getByRole("button", { name: "Beenden …" }).click();
+  await page.getByRole("button", { name: "Abschließen …" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Abschließen" }).click();
   await expect(page.getByText(/liegt im Papierkorb/)).toBeVisible();
   await page.getByRole("link", { name: "Papierkorb" }).click();
@@ -71,15 +71,15 @@ test("Vorlage → Durchführung → abhaken → archivieren → wieder öffnen �
   await expect(row).toBeVisible();
   await row.getByRole("button", { name: /wiederherstellen/ }).click();
   await expect(page.getByText("Der Papierkorb ist leer.")).toBeVisible();
-  await page.getByRole("link", { name: "Aktuelle Durchführungen", exact: true }).click();
+  await page.getByRole("link", { name: "Meine Checklisten", exact: true }).click();
   await expect(page.getByRole("link", { name: "Ausflug Füssen" })).toBeVisible();
 });
 
 test("Teilen: Link mit Passwort – Empfänger ohne Konto bearbeitet, Besitzer sieht es, Widerruf sperrt aus", async ({ page, browser }) => {
   await register(page);
   await createTemplate(page, "Therme", ["Handtuch", "Badekappe"]);
-  await page.getByRole("link", { name: "Aktuelle Durchführungen", exact: true }).click();
-  await page.getByRole("button", { name: /Neue Durchführung/ }).first().click();
+  await page.getByRole("link", { name: "Meine Checklisten", exact: true }).click();
+  await page.getByRole("button", { name: /Neue Checkliste/ }).first().click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Titel").fill("Thermenbesuch");
   await dialog.getByLabel("Therme").check();
@@ -98,7 +98,7 @@ test("Teilen: Link mit Passwort – Empfänger ohne Konto bearbeitet, Besitzer s
   await share.getByRole("button", { name: "Fertig" }).click();
 
   // Kennzeichnung in der Liste
-  await page.getByRole("link", { name: "Aktuelle Durchführungen", exact: true }).click();
+  await page.getByRole("link", { name: "Meine Checklisten", exact: true }).click();
   await expect(page.getByTestId("share-badge")).toContainText("Geteilt");
 
   // Empfänger: eigener, nicht angemeldeter Browserkontext
@@ -139,9 +139,9 @@ test("Abmelden und wieder Anmelden; Sitzung schützt Seiten", async ({ page }) =
   await expect(page).toHaveURL(/\/login/); // geschützte Seite → Anmeldung
 });
 
-test("Zugriff auf fremde Durchführung zeigt „nicht gefunden“", async ({ page, browser }) => {
+test("Zugriff auf fremde Checkliste zeigt „nicht gefunden“", async ({ page, browser }) => {
   await register(page);
-  await page.getByRole("button", { name: /Neue Durchführung/ }).first().click();
+  await page.getByRole("button", { name: /Neue Checkliste/ }).first().click();
   await page.getByRole("dialog").getByLabel("Titel").fill("Privat");
   await page.getByRole("dialog").getByRole("button", { name: "Anlegen" }).click();
   await expect(page.getByRole("heading", { name: "Privat", level: 1 })).toBeVisible();
@@ -150,15 +150,15 @@ test("Zugriff auf fremde Durchführung zeigt „nicht gefunden“", async ({ pag
   const other = await (await browser.newContext({ locale: "de-DE" })).newPage();
   await register(other, "Fremder");
   await other.goto(path);
-  await expect(other.getByText("Diese Durchführung gibt es nicht (mehr).")).toBeVisible();
+  await expect(other.getByText("Diese Checkliste gibt es nicht (mehr).")).toBeVisible();
   await other.context().close();
 });
 
 test("Offline (PWA): App startet ohne Verbindung, Abhaken und Hinzufügen werden bei Verbindung synchronisiert", async ({ page, context }) => {
   await register(page);
   await createTemplate(page, "Wanderung", ["Wasser", "Karte"]);
-  await page.getByRole("link", { name: "Aktuelle Durchführungen", exact: true }).click();
-  await page.getByRole("button", { name: /Neue Durchführung/ }).first().click();
+  await page.getByRole("link", { name: "Meine Checklisten", exact: true }).click();
+  await page.getByRole("button", { name: /Neue Checkliste/ }).first().click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Titel").fill("Wanderung Samstag");
   await dialog.getByLabel("Wanderung").check();

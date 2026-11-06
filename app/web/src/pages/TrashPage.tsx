@@ -23,7 +23,7 @@ export default function TrashPage() {
     try { await fn(); await refresh(); setNotice(done); } catch (err) { setError(errorText(err)); }
   }
 
-  const date = (ms: number) => new Date(ms).toLocaleDateString(i18n.language);
+  const date = (ms: number) => new Date(ms).toLocaleDateString(i18n.language, { dateStyle: "medium" });
   const items = q.data?.items ?? [];
   const retention = q.data?.retentionDays;
 

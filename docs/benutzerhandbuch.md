@@ -1,6 +1,6 @@
 # Benutzerhandbuch
 
-Stand: vollständige Oberfläche (Anmeldung, Profil, Vorlagen, Durchführungen, Archiv, Papierkorb, Teilen, Offline-Betrieb). Alles lässt sich auch über die [API](api.md) und den [MCP-Server](mcp.md) nutzen.
+Stand: vollständige Oberfläche (Anmeldung, Profil, Vorlagen, Checklisten, Archiv, Papierkorb, Teilen, Offline-Betrieb). Alles lässt sich auch über die [API](api.md) und den [MCP-Server](mcp.md) nutzen.
 
 ## Anmelden und Registrieren
 
@@ -14,16 +14,16 @@ Wiederholte Fehlversuche sperren die Anmeldung zeitweise (die Meldung nennt die 
 
 ## Oberfläche
 
-Links die Navigation (auf dem Smartphone hinter „Menü“): *Aktuelle Durchführungen*, *Vorlagen*, *Archiv*, *Papierkorb*, *Profil*. Die Seite ist für Smartphone, Tablet und Desktop ausgelegt, per Tastatur bedienbar (Sprunglink „Zum Inhalt springen“, sichtbarer Fokus) und passt sich dem hellen oder dunklen Design an.
+Links die Navigation (auf dem Smartphone hinter „Menü“): *Meine Checklisten*, *Vorlagen*, *Archiv*, *Papierkorb*, *Profil*. Die Seite ist für Smartphone, Tablet und Desktop ausgelegt, per Tastatur bedienbar (Sprunglink „Zum Inhalt springen“, sichtbarer Fokus) und passt sich dem hellen oder dunklen Design an.
 
 ## Vorlagen
 
-Eine **Vorlage** ist eine wiederverwendbare Liste von Punkten (z. B. „Tagesausflug“, „Therme“, „Wohnung putzen“), die später in Durchführungen kopiert wird.
+Eine **Vorlage** ist eine wiederverwendbare Liste von Punkten (z. B. „Tagesausflug“, „Therme“, „Wohnung putzen“), die später in Checklisten kopiert wird.
 
 ### Liste
 - **Suche** nach dem Titel (die Liste aktualisiert sich beim Tippen), **Filter** nach Tag (Schaltfläche erneut klicken hebt den Filter auf) und **Sortierung** (zuletzt geändert oder A–Z). Suche, Filter und Seite stehen in der Adresse und lassen sich als Lesezeichen speichern.
 - Bei mehr als 20 Vorlagen wird in Seiten geblättert.
-- Je Vorlage: **Bearbeiten**, **Duplizieren** (öffnet die Kopie) und **Löschen**. Gelöschte Vorlagen landen im **Papierkorb** und lassen sich dort wiederherstellen; bereits gestartete Durchführungen bleiben unverändert.
+- Je Vorlage: **Bearbeiten**, **Duplizieren** (öffnet die Kopie) und **Löschen**. Gelöschte Vorlagen landen im **Papierkorb** und lassen sich dort wiederherstellen; bereits gestartete Checklisten bleiben unverändert.
 - **Neue Vorlage:** Titel eingeben, die Vorlage öffnet sich sofort zum Befüllen.
 
 ### Bearbeiten
@@ -37,39 +37,41 @@ Eine **Vorlage** ist eine wiederverwendbare Liste von Punkten (z. B. „Tagesaus
 - **Exportieren:** JSON (vollständig, wieder importierbar), CSV (Komma) oder CSV für Excel (Semikolon) und Markdown (lesbar, druckbar).
 
 ### Tags
-Tags markieren Vorlagen farbig (nicht Durchführungen). Du legst sie im Editor oder unter **Tags verwalten** an – gib nur den Namen ein: **die Farbe wird automatisch so gewählt, dass sie sich von deinen anderen Tags gut unterscheidet.** Unter *Tags verwalten* änderst du Farbe und Namen (beim Verlassen des Felds gespeichert) oder löschst einen Tag (nur die Zuordnung zu Vorlagen verschwindet).
+Tags markieren Vorlagen farbig (nicht Checklisten). Du legst sie im Editor oder unter **Tags verwalten** an – gib nur den Namen ein: **die Farbe wird automatisch so gewählt, dass sie sich von deinen anderen Tags gut unterscheidet.** Unter *Tags verwalten* änderst du Farbe und Namen (beim Verlassen des Felds gespeichert) oder löschst einen Tag (nur die Zuordnung zu Vorlagen verschwindet).
 
-## Durchführungen
+## Checklisten
 
-Eine **Durchführung** ist eine konkrete Abarbeitung, z. B. „Ausflug Füssen“. Die Startseite zeigt alle aktiven Durchführungen mit Fortschritt (erledigt/gesamt). **Geteilte** Durchführungen tragen ein Kennzeichen „Geteilt · …“ (mit der Berechtigung und ggf. Passwort), nicht geteilte keines.
+> Früher „Durchführungen“ genannt. In API und MCP heißt die Einheit weiterhin `run`.
 
-- **Anlegen:** *Neue Durchführung*, Titel eingeben und beliebig viele Vorlagen wählen. Jede Vorlage wird ein eigener **Abschnitt**, in der Reihenfolge deiner Auswahl (die Nummer am Eintrag zeigt sie). Ohne Vorlage startest du leer.
-- **Abhaken:** Kästchen anklicken – wird sofort gespeichert. Am Elternpunkt steht der Fortschritt der Unterpunkte; jeder Abschnitt und die ganze Durchführung haben einen Fortschrittsbalken.
-- **Ergänzen:** Eigene Punkte und Unterpunkte (＋) hinzufügen, Punkte löschen (mit Rückfrage). *Vorlagen hinzufügen* hängt weitere Vorlagen als Abschnitte an; *Eigener Abschnitt* legt einen leeren Abschnitt für Punkte an, die in keiner Vorlage stehen. Die Durchführung ist eine Kopie: spätere Änderungen an der Vorlage wirken sich nicht auf sie aus.
+Eine **Checkliste** ist eine konkrete Abarbeitung, z. B. „Ausflug Füssen“. Die Startseite zeigt alle aktiven Checklisten mit Fortschritt (erledigt/gesamt). **Geteilte** Checklisten tragen ein Kennzeichen „Geteilt · …“ (mit der Berechtigung und ggf. Passwort), nicht geteilte keines.
+
+- **Anlegen:** *Neue Checkliste*, beliebig viele Vorlagen wählen – der Titel wird aus den Vorlagen und dem Datum vorgeschlagen und lässt sich ändern. Jede Vorlage wird ein eigener **Abschnitt**, in der Reihenfolge deiner Auswahl (die Nummer am Eintrag zeigt sie). Ohne Vorlage startest du leer.
+- **Abhaken:** Irgendwo auf die Zeile klicken oder tippen – wird sofort gespeichert. Die Schaltflächen ＋ (Unterpunkt) und 🗑 (löschen) erscheinen beim Darüberfahren oder Fokussieren (auf Touchgeräten immer). *Erledigte ausblenden* blendet abgehakte Punkte aus (wird gemerkt). Sind alle Punkte erledigt, erscheint ein Hinweis zum Abschließen. Am Elternpunkt steht der Fortschritt der Unterpunkte; jeder Abschnitt und die ganze Checkliste haben einen Fortschrittsbalken.
+- **Ergänzen:** Eigene Punkte und Unterpunkte (＋) hinzufügen, Punkte löschen (mit Rückfrage). *Vorlagen hinzufügen* hängt weitere Vorlagen als Abschnitte an; *Eigener Abschnitt* legt einen leeren Abschnitt für Punkte an, die in keiner Vorlage stehen. Die Checkliste ist eine Kopie: spätere Änderungen an der Vorlage wirken sich nicht auf sie aus.
 - **Beenden:** Zwei Wege.
-  - **Abschließen:** Die Durchführung ist erledigt und wandert in den **Papierkorb** (wiederherstellbar bis zur automatischen Löschung).
+  - **Abschließen:** Die Checkliste ist erledigt und wandert in den **Papierkorb** (wiederherstellbar bis zur automatischen Löschung).
   - **Archivieren:** Sie bleibt dauerhaft erhalten, ist schreibgeschützt und nicht mehr teilbar (ein Link wird beendet). Das **Archiv** wird nie automatisch geleert.
 
 ### Archiv
-Unter *Archiv* findest du archivierte Durchführungen (Suche möglich). **Wieder öffnen** macht sie wieder aktiv, **Löschen** verschiebt sie in den Papierkorb.
+Unter *Archiv* findest du archivierte Checklisten (Suche möglich). **Wieder öffnen** macht sie wieder aktiv, **Löschen** verschiebt sie in den Papierkorb.
 
 ### Papierkorb
-Enthält gelöschte Vorlagen und Durchführungen mit Löschdatum und dem Tag der endgültigen Löschung (Aufbewahrungszeit im Profil). **Wiederherstellen** bringt einen Eintrag zurück (Durchführungen in ihren früheren Zustand aktiv/archiviert), **Endgültig löschen** und **Papierkorb leeren** fragen vorher nach.
+Enthält gelöschte Vorlagen und Checklisten mit Löschdatum und dem Tag der endgültigen Löschung (Aufbewahrungszeit im Profil). **Wiederherstellen** bringt einen Eintrag zurück (Checklisten in ihren früheren Zustand aktiv/archiviert), **Endgültig löschen** und **Papierkorb leeren** fragen vorher nach.
 
 ### Teilen
-In einer aktiven Durchführung: **Teilen …**.
+In einer aktiven Checkliste: **Teilen …**.
 
 1. Zugriff wählen: *Jeder mit dem Link* oder *Link + Passwort* (mindestens 8 Zeichen), und die Berechtigung *Nur ansehen* oder *Ansehen und bearbeiten* → **Link erstellen**, Link kopieren.
 2. Empfänger brauchen **kein Konto**. Mit Bearbeiten-Recht können sie Punkte abhaken, hinzufügen und löschen; die Ansicht aktualisiert sich automatisch (alle paar Sekunden).
 3. Einstellungen jederzeit ändern (der Link bleibt gleich), **Neuen Link erzeugen** macht den alten sofort ungültig, **Teilen beenden** entfernt den Zugriff.
 
-Alle Links verwaltest du gesammelt im Profil (*Geteilte Durchführungen*). Links haben kein Ablaufdatum; Durchführungen im Papierkorb oder Archiv sind nicht erreichbar.
+Alle Links verwaltest du gesammelt im Profil (*Geteilte Checklisten*). Links haben kein Ablaufdatum; Checklisten im Papierkorb oder Archiv sind nicht erreichbar.
 
 ## Als App installieren und offline nutzen
 
 - **Installieren:** Im Browser (Chrome, Edge, auf dem Smartphone auch Safari über „Zum Home-Bildschirm“) die Seite als App installieren. Sie startet dann wie eine normale App.
-- **Offline arbeiten:** Nach dem ersten Öffnen mit Verbindung merkt sich das Gerät deine Durchführungen, Vorlagen und Tags. Ohne Verbindung (Wanderung, Keller, Flugmodus) kannst du die App öffnen, Durchführungen ansehen, **Punkte abhaken** und **neue Punkte hinzufügen**. Oben erscheint „Du bist offline“ mit der Zahl der wartenden Änderungen; neue Punkte tragen den Zusatz „wartet auf Übertragung“.
-- **Synchronisieren:** Sobald wieder eine Verbindung besteht, werden die Änderungen automatisch übertragen (Meldung „… wurden übertragen“). Wurde ein Punkt inzwischen gelöscht oder die Durchführung archiviert, erscheint eine Meldung mit dem Namen; diese Änderung wird verworfen. Bei gleichzeitigen Änderungen an demselben Punkt gilt die zuletzt übertragene.
+- **Offline arbeiten:** Nach dem ersten Öffnen mit Verbindung merkt sich das Gerät deine Checklisten, Vorlagen und Tags. Ohne Verbindung (Wanderung, Keller, Flugmodus) kannst du die App öffnen, Checklisten ansehen, **Punkte abhaken** und **neue Punkte hinzufügen**. Oben erscheint „Du bist offline“ mit der Zahl der wartenden Änderungen; neue Punkte tragen den Zusatz „wartet auf Übertragung“.
+- **Synchronisieren:** Sobald wieder eine Verbindung besteht, werden die Änderungen automatisch übertragen (Meldung „… wurden übertragen“). Wurde ein Punkt inzwischen gelöscht oder die Checkliste archiviert, erscheint eine Meldung mit dem Namen; diese Änderung wird verworfen. Bei gleichzeitigen Änderungen an demselben Punkt gilt die zuletzt übertragene.
 - **Nur online möglich:** Löschen, Abschnitte, Vorlagen bearbeiten, Beenden/Archivieren, Teilen sowie geteilte Links (`/s/…`).
 - **Datenschutz:** Die lokalen Daten liegen nur auf diesem Gerät und werden beim **Abmelden** gelöscht. Melde dich auf fremden Geräten immer ab. Noch nicht übertragene Änderungen gehen beim Abmelden verloren – vorher mit Verbindung synchronisieren.
 
@@ -102,8 +104,8 @@ Für Skripte, Automatisierung und KI-Assistenten.
 
 Empfehlung: so wenig Recht wie möglich, ein Token je Gerät oder Anwendung, möglichst mit Ablaufdatum.
 
-### Geteilte Durchführungen
-Alle Links, über die du Durchführungen teilst: Link kopieren, Einstellungen ändern (Zugriff mit oder ohne Passwort, nur ansehen oder bearbeiten), einzeln oder alle **zurückziehen**. Zurückgezogene Links funktionieren sofort nicht mehr. Durchführungen im Papierkorb sind gekennzeichnet; ihr Link ist solange unwirksam.
+### Geteilte Checklisten
+Alle Links, über die du Checklisten teilst: Link kopieren, Einstellungen ändern (Zugriff mit oder ohne Passwort, nur ansehen oder bearbeiten), einzeln oder alle **zurückziehen**. Zurückgezogene Links funktionieren sofort nicht mehr. Checklisten im Papierkorb sind gekennzeichnet; ihr Link ist solange unwirksam.
 
 ### Daten
 - **Alle Daten exportieren** (JSON) und **Konto-Export** (DSGVO: zusätzlich Profil und Papierkorb; nie Passwörter oder Token).

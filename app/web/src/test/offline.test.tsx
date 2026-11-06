@@ -56,7 +56,7 @@ describe("Änderungswarteschlange (F-74)", () => {
     expect(getOps()).toHaveLength(2);
   });
 
-  it("meldet Löschkonflikte (404) und archivierte Durchführungen (409), verwirft sie und macht weiter", async () => {
+  it("meldet Löschkonflikte (404) und archivierte Checklisten (409), verwirft sie und macht weiter", async () => {
     enqueue(op("a", true)); enqueue(op("b", true)); enqueue(op("c", true));
     const res = await flushQueue(async (o) => {
       if (o.kind === "check" && o.itemId === "a") throw new ApiError(404, "not_found");
@@ -126,7 +126,7 @@ describe("Offline in der Oberfläche", () => {
     setOnline(true);
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("1 Änderung konnte nicht übertragen werden und wurde verworfen");
-    expect(within(alert).getByText(/Route prüfen – Der Punkt, der Abschnitt oder die Durchführung existiert nicht mehr/)).toBeInTheDocument();
+    expect(within(alert).getByText(/Route prüfen – Der Punkt, der Abschnitt oder die Checkliste existiert nicht mehr/)).toBeInTheDocument();
   });
 
   it("meldet sich der Nutzer ab, wird der lokale Datenbestand entfernt", async () => {
@@ -157,7 +157,7 @@ describe("Lokaler Zwischenspeicher (IndexedDB)", () => {
     return qc;
   };
 
-  it("speichert nur Durchführungen, Vorlagen und Tags – nicht Freigabelinks oder Kontodaten – und stellt sie für denselben Nutzer wieder her", async () => {
+  it("speichert nur Checklisten, Vorlagen und Tags – nicht Freigabelinks oder Kontodaten – und stellt sie für denselben Nutzer wieder her", async () => {
     const stop = startPersisting(filled(), "u1");
     await waitFor(async () => expect(await kvGet("cache")).toBeTruthy(), { timeout: 4000 });
     stop();

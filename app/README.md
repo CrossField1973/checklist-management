@@ -10,7 +10,7 @@ Umsetzung des [Pflichtenhefts](../Pflichtenheft.md). Dokumentation: [../docs/](.
 | 2. Datenbankschema und Migrationen | fertig |
 | 3. Konto: Registrierung (abschaltbar), Login/Logout, Profil, Passwort ändern/vergessen/zurücksetzen, Konto löschen, CLI `create-user` | fertig (nur API, Oberfläche folgt) |
 | 4. Vorlagen mit Unterpunkten, Verschieben (Drag-and-Drop-API), Tags mit automatischer Farbe, Suche/Filter, Duplizieren, Löschen (Soft-Delete) | fertig (nur API) |
-| 5. Durchführungen: aus mehreren Vorlagen anlegen, Vorlagen ergänzen, Abhaken mit Fortschritt, eigene Punkte, Abschnitte, Umbenennen, Löschen (Soft-Delete) | fertig (nur API) |
+| 5. Checklisten: aus mehreren Vorlagen anlegen, Vorlagen ergänzen, Abhaken mit Fortschritt, eigene Punkte, Abschnitte, Umbenennen, Löschen (Soft-Delete) | fertig (nur API) |
 | 6. Abschließen (= Papierkorb), Archivieren, Wieder öffnen, Papierkorb (Liste, Wiederherstellen, endgültig löschen, leeren), automatisches Leeren nach Frist | fertig (nur API) |
 | 7. Freigabelinks: anlegen/ändern/neu erzeugen/widerrufen, Passwortschutz, ansehen/bearbeiten, öffentliche Ansicht ohne Konto, Geteilt-Kennzeichnung, Verwaltung im Profil | fertig (nur API) |
 | 8. API-Token-Verwaltung (lesen / lesen+schreiben, Ablauf, Rate-Limit), OpenAPI unter `/api/docs` | fertig |
@@ -19,7 +19,7 @@ Umsetzung des [Pflichtenhefts](../Pflichtenheft.md). Dokumentation: [../docs/](.
 | 11. Zwei-Faktor (TOTP, Wiederherstellungscodes) und SSO (OpenID Connect, PKCE) | fertig |
 | 12a. Oberfläche: Gerüst, Anmelden (inkl. 2FA/SSO), Registrieren, Passwort vergessen/zurücksetzen, Profil (Konto, Passwort, 2FA, SSO, Token, Freigaben, Daten, Konto löschen), Deutsch/Englisch, hell/dunkel, Auslieferung durch den Server | fertig |
 | 12b. Oberfläche: Vorlagen (Liste mit Suche/Tag-Filter/Sortierung/Seiten, Editor mit Unterpunkten, Drag-and-Drop per Maus/Touch/Tastatur plus Schaltflächen, Duplizieren, Löschen, Export) und Tags (automatische Farbe) | fertig |
-| 12c. Oberfläche: Durchführungen (Liste, Anlegen aus mehreren Vorlagen, Abhaken, Ergänzen), Beenden (Abschließen/Archivieren), Archiv, Papierkorb, Teilen und öffentliche Ansicht `/s/<token>` | fertig |
+| 12c. Oberfläche: Checklisten (Liste, Anlegen aus mehreren Vorlagen, Abhaken, Ergänzen), Beenden (Abschließen/Archivieren), Archiv, Papierkorb, Teilen und öffentliche Ansicht `/s/<token>` | fertig |
 | 13. Barrierefreiheit: automatische Prüfung (axe-core) und Kontrastprüfung hell/dunkel; i18n-Vollständigkeit | fertig |
 | 14. Sicherheits-/Mandantentests über alle Routen, Playwright-Hauptabläufe (auch gegen Docker), Abschlussdoku | fertig |
 | 15. Offline/PWA: installierbar, Oberfläche und Daten offline, Abhaken/Hinzufügen mit Änderungswarteschlange und Synchronisierung | fertig |
@@ -93,9 +93,9 @@ Alle Routen verlangen Anmeldung; fremde IDs liefern `404` (Mandantentrennung).
 
 Punkt-Routen liefern den vollständigen, verschachtelten Baum (`items`) zurück, damit eine Oberfläche ihn direkt ersetzen kann.
 
-## Durchführungs-API (Schritt 5)
+## Checklistes-API (Schritt 5)
 
-Alle Routen verlangen Anmeldung; fremde IDs liefern `404`. Änderungen an nicht aktiven (archivierten) Durchführungen liefern `409 run_not_active`. Mutierende Routen geben die komplette Durchführung (`run` mit `sections`, Punktebaum und `progress`) zurück.
+Alle Routen verlangen Anmeldung; fremde IDs liefern `404`. Änderungen an nicht aktiven (archivierten) Checklisten liefern `409 run_not_active`. Mutierende Routen geben die komplette Checkliste (`run` mit `sections`, Punktebaum und `progress`) zurück.
 
 | Methode | Pfad | Zweck |
 |---|---|---|
@@ -119,8 +119,8 @@ Noch nicht enthalten: Teilen-Kennzeichnung in der Liste (Schritt 7).
 | POST | `/api/v1/runs/:id/complete` | **Abschließen** = in den Papierkorb (`204`); auch aus dem Archiv |
 | POST | `/api/v1/runs/:id/archive` | Archivieren (`409 run_not_active`, wenn nicht aktiv); widerruft Freigabelinks |
 | POST | `/api/v1/runs/:id/reopen` | Archiv → aktiv (`409 run_not_archived`) |
-| GET | `/api/v1/trash` | Vorlagen und Durchführungen im Papierkorb inkl. `purgeAt` (oder `null` bei „nie“) |
-| POST | `/api/v1/trash/:type/:id/restore` | Wiederherstellen, `type` = `template`\|`run` (Durchführung kehrt in früheren Status zurück) |
+| GET | `/api/v1/trash` | Vorlagen und Checklisten im Papierkorb inkl. `purgeAt` (oder `null` bei „nie“) |
+| POST | `/api/v1/trash/:type/:id/restore` | Wiederherstellen, `type` = `template`\|`run` (Checkliste kehrt in früheren Status zurück) |
 | DELETE | `/api/v1/trash/:type/:id` | Endgültig löschen (Cascade) |
 | DELETE | `/api/v1/trash` | Papierkorb leeren → `{templates, runs}` |
 
@@ -180,7 +180,7 @@ Beschreibung, Beispiele und Regeln: [docs/api.md](../docs/api.md#teilen-mit-drit
 | GET | `/api/v1/public/runs/:token` | Öffentliche Ansicht (Passwort per Header `X-Share-Password`) |
 | PUT/DELETE/POST | `/api/v1/public/runs/:token/items/...`, `.../sections/:id/items` | Bearbeiten über den Link (nur bei Berechtigung „bearbeiten“) |
 
-Listen und Detail der Durchführungen enthalten `share: {access, permission} | null` (Kennzeichnung „Geteilt“).
+Listen und Detail der Checklisten enthalten `share: {access, permission} | null` (Kennzeichnung „Geteilt“).
 
 ## Nutzer per Kommandozeile anlegen
 

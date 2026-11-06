@@ -14,7 +14,7 @@ describe("Zugriffsschutz und Weiterleitungen", () => {
   it("leitet Angemeldete von der Anmeldeseite zur Startseite", async () => {
     mockApi();
     renderApp("/login");
-    expect(await heading("Aktuelle Durchführungen")).toBeInTheDocument();
+    expect(await heading("Meine Checklisten")).toBeInTheDocument();
     expect(screen.getByText("Anna Muster")).toBeInTheDocument();
   });
 
@@ -53,10 +53,10 @@ describe("Anmelden", () => {
     await ui.type(await screen.findByLabelText("E-Mail"), "anna@example.org");
     await ui.type(screen.getByLabelText("Passwort"), "Kaffeetasse-Wolke-42");
     await ui.click(screen.getByRole("button", { name: "Anmelden" }));
-    expect(await heading("Aktuelle Durchführungen")).toBeInTheDocument();
+    expect(await heading("Meine Checklisten")).toBeInTheDocument();
     expect(api.callsTo("POST /auth/login")[0]!.body).toEqual({ email: "anna@example.org", password: "Kaffeetasse-Wolke-42" });
     const nav = screen.getByRole("navigation", { name: "Hauptnavigation" });
-    for (const name of ["Aktuelle Durchführungen", "Vorlagen", "Archiv", "Papierkorb", "Profil"]) expect(within(nav).getByRole("link", { name })).toBeInTheDocument();
+    for (const name of ["Meine Checklisten", "Vorlagen", "Archiv", "Papierkorb", "Profil"]) expect(within(nav).getByRole("link", { name })).toBeInTheDocument();
   });
 
   it("zeigt bei falschen Zugangsdaten eine Fehlermeldung (als Alert) und bleibt auf der Seite", async () => {
@@ -106,7 +106,7 @@ describe("Anmelden", () => {
     await ui.clear(code);
     await ui.type(code, "123456");
     await ui.click(screen.getByRole("button", { name: "Bestätigen" }));
-    expect(await heading("Aktuelle Durchführungen")).toBeInTheDocument();
+    expect(await heading("Meine Checklisten")).toBeInTheDocument();
     expect(api.callsTo("POST /auth/login").at(-1)!.body).toEqual({ email: "anna@example.org", password: "Kaffeetasse-Wolke-42", code: "123456" });
   });
 
@@ -126,7 +126,7 @@ describe("Anmelden", () => {
     expect(await screen.findByText(/bleibt noch 1 Wiederherstellungscode/)).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument(); // noch nicht weitergeleitet
     await ui.click(screen.getByRole("button", { name: "Weiter" }));
-    expect(await heading("Aktuelle Durchführungen")).toBeInTheDocument();
+    expect(await heading("Meine Checklisten")).toBeInTheDocument();
   });
 
   it("zeigt „Passwort vergessen“ und „Registrieren“ nur, wenn der Server das anbietet", async () => {
@@ -174,7 +174,7 @@ describe("Registrieren", () => {
     await ui.type(screen.getByLabelText("E-Mail"), "anna@example.org");
     await ui.type(screen.getByLabelText("Passwort"), "Kaffeetasse-Wolke-42");
     await ui.click(screen.getByRole("button", { name: "Registrieren" }));
-    expect(await heading("Aktuelle Durchführungen")).toBeInTheDocument();
+    expect(await heading("Meine Checklisten")).toBeInTheDocument();
     expect(api.callsTo("POST /auth/register")[0]!.body).toEqual({ displayName: "Anna Muster", email: "anna@example.org", password: "Kaffeetasse-Wolke-42" });
   });
 
@@ -266,7 +266,7 @@ describe("Sprache und Design", () => {
   it("zeigt die Oberfläche in der Sprache des Profils", async () => {
     mockApi({ user: { ...USER, language: "en" } });
     renderApp("/");
-    expect(await heading("Current runs")).toBeInTheDocument();
+    expect(await heading("My checklists")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("en");
   });
@@ -274,17 +274,17 @@ describe("Sprache und Design", () => {
   it("setzt das Design aus dem Profil (hell/dunkel); „System“ folgt dem Gerät", async () => {
     const api = mockApi({ user: { ...USER, theme: "dark" } });
     const first = renderApp("/");
-    await heading("Aktuelle Durchführungen");
+    await heading("Meine Checklisten");
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
     first.unmount();
     api.setUser({ ...USER, theme: "light" });
     const second = renderApp("/");
-    await heading("Aktuelle Durchführungen");
+    await heading("Meine Checklisten");
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe("light"));
     second.unmount();
     api.setUser({ ...USER, theme: "system" });
     renderApp("/");
-    await heading("Aktuelle Durchführungen");
+    await heading("Meine Checklisten");
     await waitFor(() => expect(document.documentElement.dataset.theme).toBeUndefined());
   });
 

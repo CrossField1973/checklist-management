@@ -43,25 +43,32 @@ function AddForm({ label, onAdd, onClose, autoFocus }: { label: string; onAdd: (
   );
 }
 
-function Item({ item, sectionId, readOnly, actions, onAskDelete }: { item: RunItemNode; sectionId: string; readOnly: boolean; actions: BoardActions; onAskDelete: (i: RunItemNode) => void }) {
+const isDone = (i: RunItemNode): boolean => i.isChecked && i.children.every(isDone);
+
+function Item({ item, sectionId, readOnly, hideDone, actions, onAskDelete }: { item: RunItemNode; sectionId: string; readOnly: boolean; hideDone: boolean; actions: BoardActions; onAskDelete: (i: RunItemNode) => void }) {
   const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
   const hasChildren = item.children.length > 0;
   const pending = item.id.startsWith("tmp-"); // offline angelegt, noch nicht übertragen (F-74)
   return (
     <li>
-      <div className="flex flex-wrap items-start gap-2 rounded-lg border border-border bg-surface p-2">
-        <input
-          type="checkbox" className="mt-1 h-5 w-5" checked={item.isChecked} disabled={readOnly || pending}
-          id={`chk-${item.id}`} onChange={(e) => void actions.onCheck(item, e.target.checked)}
-        />
+      <div className="row flex flex-wrap items-start gap-2 rounded-lg border border-border bg-surface p-1 pr-2">
         <div className="min-w-0 flex-1">
-          <label htmlFor={`chk-${item.id}`} className={`break-words font-medium ${item.isChecked ? "text-muted line-through" : ""}`}>{item.title}</label>{pending && <span className="badge ml-2">{t("offline.waiting")}</span>}
-          {hasChildren && <span className="badge ml-2" aria-label={t("runs.subProgress", { done: item.childProgress.done, total: item.childProgress.total })}>{item.childProgress.done}/{item.childProgress.total}</span>}
-          {item.description && <p className="hint m-0 whitespace-pre-wrap break-words">{item.description}</p>}
+          <div className="flex items-center gap-2">
+            <label className={`flex min-h-10 min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1 ${readOnly || pending ? "" : "cursor-pointer hover:bg-bg"}`}>
+              <input
+                type="checkbox" className="h-6 w-6 shrink-0" checked={item.isChecked} disabled={readOnly || pending}
+                id={`chk-${item.id}`} onChange={(e) => void actions.onCheck(item, e.target.checked)}
+              />
+              <span className={`break-words font-medium ${item.isChecked ? "text-muted line-through" : ""}`}>{item.title}</span>
+            </label>
+            {pending && <span className="badge">{t("offline.waiting")}</span>}
+            {hasChildren && <span className="badge" aria-label={t("runs.subProgress", { done: item.childProgress.done, total: item.childProgress.total })}>{item.childProgress.done}/{item.childProgress.total}</span>}
+          </div>
+          {item.description && <p className="hint m-0 whitespace-pre-wrap break-words px-2 pb-1">{item.description}</p>}
         </div>
         {!readOnly && !pending && (
-          <div role="group" aria-label={t("runs.actionsFor", { title: item.title })} className="flex gap-1">
+          <div role="group" aria-label={t("runs.actionsFor", { title: item.title })} className="row-actions flex gap-1 self-center">
             <Button size="sm" aria-expanded={adding} onClick={() => setAdding((a) => !a)} aria-label={t("runs.addChild", { title: item.title })} title={t("runs.addChildShort")}>＋</Button>
             <Button size="sm" variant="danger" onClick={() => onAskDelete(item)} aria-label={t("runs.deleteItem", { title: item.title })} title={t("common.delete")}>🗑</Button>
           </div>
@@ -69,7 +76,7 @@ function Item({ item, sectionId, readOnly, actions, onAskDelete }: { item: RunIt
       </div>
       {(hasChildren || adding) && (
         <ul className="m-0 mt-2 grid list-none gap-2 p-0 pl-6">
-          {item.children.map((c) => <Item key={c.id} item={c} sectionId={sectionId} readOnly={readOnly} actions={actions} onAskDelete={onAskDelete} />)}
+          {item.children.filter((c) => !(hideDone && isDone(c))).map((c) => <Item key={c.id} item={c} sectionId={sectionId} readOnly={readOnly} hideDone={hideDone} actions={actions} onAskDelete={onAskDelete} />)}
           {adding && <li><AddForm label={t("runs.addChildLabel", { title: item.title })} autoFocus onClose={() => setAdding(false)} onAdd={(title) => actions.onAdd(sectionId, title, item.id)} /></li>}
         </ul>
       )}
@@ -78,7 +85,7 @@ function Item({ item, sectionId, readOnly, actions, onAskDelete }: { item: RunIt
 }
 
 /** Abschnitte mit ihren Punkten (F-23 bis F-25). Wird von der eigenen Ansicht und der Freigabe-Ansicht genutzt; `readOnly` sperrt alles. */
-export function RunBoard({ sections, readOnly, actions }: { sections: RunSection[]; readOnly: boolean; actions: BoardActions }) {
+export function RunBoard({ sections, readOnly, hideDone = false, actions }: { sections: RunSection[]; readOnly: boolean; hideDone?: boolean; actions: BoardActions }) {
   const { t } = useTranslation();
   const [toDelete, setToDelete] = useState<RunItemNode | null>(null);
   const [sectionToDelete, setSectionToDelete] = useState<RunSection | null>(null);
@@ -105,9 +112,10 @@ export function RunBoard({ sections, readOnly, actions }: { sections: RunSection
             )}
           </div>
           <ul className="m-0 mt-3 grid list-none gap-2 p-0" aria-label={s.title}>
-            {s.items.map((i) => <Item key={i.id} item={i} sectionId={s.id} readOnly={readOnly} actions={actions} onAskDelete={setToDelete} />)}
+            {s.items.filter((i) => !(hideDone && isDone(i))).map((i) => <Item key={i.id} item={i} sectionId={s.id} readOnly={readOnly} hideDone={hideDone} actions={actions} onAskDelete={setToDelete} />)}
           </ul>
           {s.items.length === 0 && <p className="hint">{t("runs.emptySection")}</p>}
+          {hideDone && s.items.length > 0 && s.items.every(isDone) && <p className="hint">{t("runs.allHidden")}</p>}
           {!readOnly && <div className="mt-3"><AddForm label={t("runs.addLabel", { title: s.title })} onAdd={(title) => actions.onAdd(s.id, title, null)} /></div>}
         </section>
       ))}

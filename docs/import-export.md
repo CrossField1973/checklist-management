@@ -15,7 +15,7 @@ Grundregeln:
 |---|---|---|
 | Alle eigenen Daten (ohne Papierkorb) | `GET /api/v1/export` | JSON |
 | Eine Vorlage | `GET /api/v1/templates/{id}/export?format=…` | `json`, `csv`, `md` |
-| Eine Durchführung | `GET /api/v1/runs/{id}/export?format=…` | `json`, `csv`, `md` |
+| Eine Checkliste | `GET /api/v1/runs/{id}/export?format=…` | `json`, `csv`, `md` |
 | Vollständiger Konto-Export (DSGVO) | `GET /api/v1/me/export` (nur Browser-Sitzung) | JSON |
 
 Bei CSV wählt `delimiter=comma|semicolon|tab` das Trennzeichen (**Excel in Deutschland: `semicolon`**). Die Dateien sind UTF-8 mit BOM, damit Umlaute richtig erscheinen. Die Antwort ist ein Download (`Content-Disposition`), der Dateiname wird aus dem Titel gebildet (nur `a–z`, `0–9`, `-`).
@@ -32,9 +32,9 @@ Tagesausflug;2;Regenjacke;
 Tagesausflug;1;Route prüfen;
 ```
 
-### Durchführungen als CSV
+### Checklisten als CSV
 
-`Abschnitt;Ebene;Titel;Beschreibung;Erledigt;Erledigt am` – „Erledigt“ ist `ja`/`nein`, „Erledigt am“ ein ISO-Zeitpunkt. (Durchführungen lassen sich als CSV nur exportieren, nicht importieren; dafür gibt es JSON.)
+`Abschnitt;Ebene;Titel;Beschreibung;Erledigt;Erledigt am` – „Erledigt“ ist `ja`/`nein`, „Erledigt am“ ein ISO-Zeitpunkt. (Checklisten lassen sich als CSV nur exportieren, nicht importieren; dafür gibt es JSON.)
 
 ### Markdown
 
@@ -51,7 +51,7 @@ Tags: Outdoor, Reisen
 - Route prüfen
 ```
 
-Durchführungen erscheinen mit Abschnitten als Überschriften und Kontrollkästchen (`- [x]` erledigt, `- [ ]` offen).
+Checklisten erscheinen mit Abschnitten als Überschriften und Kontrollkästchen (`- [x]` erledigt, `- [ ]` offen).
 
 ### Schutz vor Formel-Injektion
 
@@ -79,13 +79,13 @@ Beginnt eine CSV-Zelle mit `=`, `+`, `-`, `@` oder einem Tabulator, setzt der Ex
 - Fehler → `422 { error: "import_invalid", issues: [{ path, message }] }`, es wurde nichts angelegt.
 - Zu groß (über 12 MB) → `413`.
 
-`preview` enthält je Vorlage Titel, Punktezahl, Tags und die obersten Punkte, je Durchführung Titel, Status, Abschnitte und Fortschritt sowie, welche Tags neu angelegt und welche wiederverwendet werden.
+`preview` enthält je Vorlage Titel, Punktezahl, Tags und die obersten Punkte, je Checkliste Titel, Status, Abschnitte und Fortschritt sowie, welche Tags neu angelegt und welche wiederverwendet werden.
 
-**Grenzen:** 2000 Vorlagen, 2000 Durchführungen, 500 Tags, 50 000 Punkte pro Import, Verschachtelung bis 50 Ebenen, Titel bis 200 und Beschreibungen bis 5000 Zeichen.
+**Grenzen:** 2000 Vorlagen, 2000 Checklisten, 500 Tags, 50 000 Punkte pro Import, Verschachtelung bis 50 Ebenen, Titel bis 200 und Beschreibungen bis 5000 Zeichen.
 
 ### JSON (Round-Trip)
 
-Das Format ist das des Exports (`format: "checklisten-export"`, `version: 1`). Alle Teile sind optional; mindestens eine Vorlage oder Durchführung muss enthalten sein.
+Das Format ist das des Exports (`format: "checklisten-export"`, `version: 1`). Alle Teile sind optional; mindestens eine Vorlage oder Checkliste muss enthalten sein.
 
 ```json
 {
@@ -116,7 +116,7 @@ Das Format ist das des Exports (`format: "checklisten-export"`, `version: 1`). A
 ```
 
 - **Tags:** Namen werden ohne Beachtung der Groß-/Kleinschreibung mit vorhandenen Tags abgeglichen (vorhandene bleiben unverändert). Unbekannte Tags werden angelegt – mit der angegebenen Farbe (`#RRGGBB`) oder automatisch gewählter, gut unterscheidbarer Farbe.
-- **Durchführungen:** `status` ist `active` (Standard) oder `archived`. Abgehakte Punkte ohne `checkedAt` erhalten den Importzeitpunkt. Der Bezug auf die Quellvorlage geht verloren (der Abschnitt bleibt eine eigenständige Kopie).
+- **Checklisten:** `status` ist `active` (Standard) oder `archived`. Abgehakte Punkte ohne `checkedAt` erhalten den Importzeitpunkt. Der Bezug auf die Quellvorlage geht verloren (der Abschnitt bleibt eine eigenständige Kopie).
 
 ### CSV
 
@@ -136,7 +136,7 @@ Die Mendix-App kennt je Aufgabe nur *Name* und *Beschreibung* (und „abgehakt�
 1. In der Mendix-App die Checkliste öffnen (*Edit Checklist*) und die Tabelle der Aufgaben über „Export“ als Excel-Datei exportieren.
 2. In Excel nur die Spalten **Name** und **Description** behalten und als *CSV (UTF-8)* speichern. Mehrere Checklisten können in einer Datei stehen, wenn eine Spalte **Checkliste** (Name der Checkliste) ergänzt wird.
 3. **Vorschau** mit `dryRun: true` ausführen, Fehler beheben, dann importieren. Bei einer Datei ohne Checklisten-Spalte den Vorlagennamen als `title` angeben.
-4. In der Mendix-App sind Vorlagen und laufende „Checks“ (Kopien) nicht unterschieden: Kopien nicht mit importieren oder danach als Durchführungen/Vorlagen aufräumen.
+4. In der Mendix-App sind Vorlagen und laufende „Checks“ (Kopien) nicht unterschieden: Kopien nicht mit importieren oder danach als Checklisten/Vorlagen aufräumen.
 
 Der Abhak-Status der Mendix-Aufgaben wird bewusst nicht übernommen (Vorlagen werden nicht abgehakt).
 

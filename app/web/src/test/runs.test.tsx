@@ -29,8 +29,8 @@ function runsApi(list: RunSummary[] = [summary(), summary({ id: "r2", title: "Pu
   return api;
 }
 
-describe("Durchführungen – Startseite (F-20)", () => {
-  it("zeigt Fortschritt und kennzeichnet nur geteilte Durchführungen", async () => {
+describe("Checklisten – Startseite (F-20)", () => {
+  it("zeigt Fortschritt und kennzeichnet nur geteilte Checklisten", async () => {
     runsApi();
     renderApp("/");
     const first = (await screen.findByRole("link", { name: "Ausflug Füssen" })).closest("li")!;
@@ -39,21 +39,21 @@ describe("Durchführungen – Startseite (F-20)", () => {
     expect(within(first).queryByTestId("share-badge")).not.toBeInTheDocument();
     const second = screen.getByRole("link", { name: "Putzen" }).closest("li")!;
     expect(within(second).getByTestId("share-badge")).toHaveTextContent(/Geteilt/);
-    expect(screen.getByText("2 Durchführungen")).toBeInTheDocument();
+    expect(screen.getByText("2 Checklisten")).toBeInTheDocument();
   });
 
   it("zeigt bei leerer Liste einen Hinweis mit Schaltfläche zum Anlegen", async () => {
     runsApi([]);
     renderApp("/");
-    expect(await screen.findByText(/Noch keine aktive Durchführung/)).toBeInTheDocument();
+    expect(await screen.findByText(/Noch keine Checkliste/)).toBeInTheDocument();
   });
 
-  it("legt eine Durchführung aus mehreren Vorlagen an – in der Reihenfolge der Auswahl – und öffnet sie", async () => {
+  it("legt eine Checkliste aus mehreren Vorlagen an – in der Reihenfolge der Auswahl – und öffnet sie", async () => {
     const api = runsApi();
     api.on("POST /runs", () => ({ status: 201, body: { run: detail() } }));
     const { ui } = renderApp("/");
     await screen.findByRole("link", { name: "Putzen" });
-    await ui.click(screen.getByRole("button", { name: /Neue Durchführung/ }));
+    await ui.click(screen.getByRole("button", { name: /Neue Checkliste/ }));
     const dialog = await screen.findByRole("dialog");
     await ui.type(within(dialog).getByLabelText("Titel"), "Ausflug Füssen");
     await ui.click(await within(dialog).findByLabelText("Therme"));
@@ -68,12 +68,12 @@ describe("Durchführungen – Startseite (F-20)", () => {
     runsApi();
     const { ui } = renderApp("/");
     await screen.findByRole("link", { name: "Putzen" });
-    await ui.click(screen.getByRole("button", { name: /Neue Durchführung/ }));
+    await ui.click(screen.getByRole("button", { name: /Neue Checkliste/ }));
     expect(within(await screen.findByRole("dialog")).getByRole("button", { name: "Anlegen" })).toBeDisabled();
   });
 });
 
-describe("Durchführung bearbeiten (F-23 bis F-26)", () => {
+describe("Checkliste bearbeiten (F-23 bis F-26)", () => {
   it("hakt Punkte sofort ab und speichert mit dem Server", async () => {
     const api = runsApi();
     api.on("PUT /run-items/b", () => ({ body: { run: detail({ progress: { done: 2, total: 4 }, sections: [{ ...detail().sections[0]!, items: [item("a", "Rucksack", true), item("b", "Route prüfen", true), item("c", "Proviant", false, [item("d", "Brot")])] }] }) } }));
@@ -128,11 +128,11 @@ describe("Durchführung bearbeiten (F-23 bis F-26)", () => {
     await waitFor(() => expect(api.callsTo("POST /runs/r1/sections")[0]!.body).toEqual({ templateIds: ["t2"] }));
   });
 
-  it("zeigt einen Hinweis, wenn die Durchführung nicht existiert", async () => {
+  it("zeigt einen Hinweis, wenn die Checkliste nicht existiert", async () => {
     const api = runsApi();
     api.on("GET /runs/r1", () => apiError(404, "not_found"));
     renderApp("/runs/r1");
-    expect(await screen.findByText("Diese Durchführung gibt es nicht (mehr).")).toBeInTheDocument();
+    expect(await screen.findByText("Diese Checkliste gibt es nicht (mehr).")).toBeInTheDocument();
   });
 });
 
@@ -141,7 +141,7 @@ describe("Abschließen, Archivieren, Archiv (F-27 bis F-30)", () => {
     const api = runsApi();
     api.on("POST /runs/r1/complete", () => ({ status: 204 }));
     const { ui } = renderApp("/runs/r1");
-    await ui.click(await screen.findByRole("button", { name: "Beenden …" }));
+    await ui.click(await screen.findByRole("button", { name: "Abschließen …" }));
     await ui.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Abschließen" }));
     await waitFor(() => expect(api.callsTo("POST /runs/r1/complete")).toHaveLength(1));
     expect(await screen.findByText(/wurde abgeschlossen und liegt im Papierkorb/)).toBeInTheDocument();
@@ -151,14 +151,14 @@ describe("Abschließen, Archivieren, Archiv (F-27 bis F-30)", () => {
     const api = runsApi();
     api.on("POST /runs/r1/archive", () => ({ body: { run: detail({ status: "archived" }) } }));
     const { ui } = renderApp("/runs/r1");
-    await ui.click(await screen.findByRole("button", { name: "Beenden …" }));
+    await ui.click(await screen.findByRole("button", { name: "Abschließen …" }));
     await ui.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Archivieren" }));
     await waitFor(() => expect(api.callsTo("POST /runs/r1/archive")).toHaveLength(1));
     expect(await screen.findByText(/wurde archiviert/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Archiv", level: 1 })).toBeInTheDocument();
   });
 
-  it("archivierte Durchführungen sind schreibgeschützt und lassen sich wieder öffnen", async () => {
+  it("archivierte Checklisten sind schreibgeschützt und lassen sich wieder öffnen", async () => {
     const api = runsApi();
     api.on("GET /runs/r1", () => ({ body: { run: detail({ status: "archived", archivedAt: 5 }) } }));
     api.on("POST /runs/r1/reopen", () => ({ body: { run: detail() } }));
@@ -235,7 +235,7 @@ describe("Papierkorb (F-31)", () => {
     api.on("POST /trash/run/r1/restore", () => ({ status: 204 }));
     const { ui } = renderApp("/trash");
     const row = (await screen.findByText("Ausflug Füssen")).closest("li")!;
-    expect(row).toHaveTextContent("Durchführung");
+    expect(row).toHaveTextContent("Checkliste");
     expect(row).toHaveTextContent("3/4");
     expect(screen.getByText(/nach 30 Tagen endgültig gelöscht/)).toBeInTheDocument();
     await ui.click(within(row).getByRole("button", { name: "Ausflug Füssen wiederherstellen" }));
@@ -278,7 +278,7 @@ describe("Öffentliche Ansicht /s/<token>", () => {
     expect(await screen.findByRole("heading", { name: "Ausflug Füssen", level: 1 })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Route prüfen" })).toBeDisabled();
     expect(screen.queryByLabelText("Neuer Punkt in Tagesausflug")).not.toBeInTheDocument();
-    expect(screen.getByText(/Du kannst diese Durchführung ansehen/)).toBeInTheDocument();
+    expect(screen.getByText(/Du kannst diese Checkliste ansehen/)).toBeInTheDocument();
   });
 
   it("verlangt bei passwortgeschützten Links das Passwort und sendet es als Header", async () => {
@@ -311,5 +311,50 @@ describe("Öffentliche Ansicht /s/<token>", () => {
     api.on(`GET /public/runs/${TOKEN}`, () => apiError(404, "not_found"));
     renderApp(`/s/${TOKEN}`);
     expect(await screen.findByText("Dieser Link ist ungültig oder wurde beendet.")).toBeInTheDocument();
+  });
+});
+
+describe("Bedienung (UX)", () => {
+  it("schlägt den Titel aus den gewählten Vorlagen vor, solange er nicht selbst geändert wurde", async () => {
+    runsApi();
+    const { ui } = renderApp("/");
+    await ui.click(await screen.findByRole("button", { name: /Neue Checkliste/ }));
+    const dialog = await screen.findByRole("dialog");
+    await ui.click(await within(dialog).findByLabelText("Therme"));
+    expect((within(dialog).getByLabelText("Titel") as HTMLInputElement).value).toMatch(/^Therme – /);
+    await ui.click(within(dialog).getByLabelText("Tagesausflug"));
+    expect((within(dialog).getByLabelText("Titel") as HTMLInputElement).value).toMatch(/^Therme \+ Tagesausflug – /);
+    await ui.clear(within(dialog).getByLabelText("Titel"));
+    await ui.type(within(dialog).getByLabelText("Titel"), "Mein Titel");
+    await ui.click(within(dialog).getByLabelText(/^Therme/)); // Auswahl ändern überschreibt den eigenen Titel nicht
+    expect(within(dialog).getByLabelText("Titel")).toHaveValue("Mein Titel");
+  });
+
+  it("blendet erledigte Punkte auf Wunsch aus", async () => {
+    runsApi();
+    const { ui } = renderApp("/runs/r1");
+    expect(await screen.findByRole("checkbox", { name: "Rucksack" })).toBeInTheDocument();
+    await ui.click(screen.getByLabelText("Erledigte ausblenden"));
+    expect(screen.queryByRole("checkbox", { name: "Rucksack" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Route prüfen" })).toBeInTheDocument();
+    await ui.click(screen.getByLabelText("Erledigte ausblenden"));
+    expect(screen.getByRole("checkbox", { name: "Rucksack" })).toBeInTheDocument();
+  });
+
+  it("weist darauf hin, wenn alles erledigt ist", async () => {
+    const api = runsApi();
+    const done = detail();
+    done.progress = { done: 4, total: 4 };
+    done.sections[0]!.items = [item("a", "Rucksack", true)];
+    api.on("GET /runs/r1", () => ({ body: { run: done } }));
+    renderApp("/runs/r1");
+    expect(await screen.findByText("Alles erledigt!")).toBeInTheDocument();
+  });
+
+  it("erklärt Neulingen die ersten Schritte, wenn es noch nichts gibt", async () => {
+    runsApi([]);
+    renderApp("/");
+    expect(await screen.findByText(/1\. Vorlage anlegen/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Neue Vorlage anlegen" })).toHaveAttribute("href", "/templates");
   });
 });

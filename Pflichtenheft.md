@@ -1,11 +1,13 @@
 # Pflichtenheft – Checklisten-Management (Self-Hosted)
 
-**Version:** 3.14 (Entwurf) · **Stand:** 2026-11-05
+**Version:** 3.15 (Entwurf) · **Stand:** 2026-11-05
 **Zweck:** Nachbau und Erweiterung der Mendix-„Checklist App“ als selbst gehostete Anwendung ohne Nutzer-/Datenlimits. Grundlage für die Entwicklung mit KI-Unterstützung.
 **Quelle:** Analyse des Mendix-Projekts `Checklist App/Checklist App-main` plus Anpassungswünsche vom 2026-11-05.
 **Hinweis:** Anforderungs-IDs sind stabil und bewusst nicht lückenlos (entfallene Anforderungen wurden nicht neu nummeriert).
 
 ---
+
+> **Begriffe in der Oberfläche (ab Version 3.15):** Die in diesem Dokument „Durchführung“ genannte Einheit heißt in der Oberfläche **Checkliste** (Navigation „Meine Checklisten“; Englisch „checklist“); „Vorlage“ bleibt „Vorlage“. In Code, API und MCP heißt sie weiterhin `run` (Pfade `/runs`, Werkzeuge `*_run*`).
 
 ## 1. Ziel und Umfang
 
