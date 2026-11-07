@@ -14,11 +14,9 @@ beforeEach(async () => {
 });
 
 async function makeRun(client: Client = anna, title = "Ausflug Füssen") {
-  const t = (await client.post("/api/v1/templates", { title: "Wandern" })).json().template.id as string;
-  for (const name of ["Schuhe", "Karte"]) await client.post(`/api/v1/templates/${t}/items`, { title: name });
-  return (await client.post("/api/v1/runs", { title, templateIds: [t] })).json().run as {
-    id: string; sections: { id: string; items: Item[] }[];
-  };
+  const created = (await client.post("/api/v1/runs", { title })).json().run as { id: string };
+  const res = await client.post(`/api/v1/runs/${created.id}/items`, { items: [{ title: "Schuhe" }, { title: "Karte" }] });
+  return res.json().run as { id: string; sections: { id: string; items: Item[] }[] };
 }
 const share = (run: { id: string }, body: object = { access: "anyone", permission: "view" }) =>
   anna.put(`/api/v1/runs/${run.id}/share`, body);
@@ -251,8 +249,8 @@ describe("Öffentlicher Zugriff ohne Konto (F-40, F-43, F-44)", () => {
 
     let res = await pubWrite("PUT", `${token}/items/${schuhe.id}`, { isChecked: true });
     expect(res.json().run.progress).toEqual({ done: 1, total: 2 });
-    res = await pubWrite("PUT", `${token}/items/${karte.id}`, { title: "Wanderkarte", description: "1:25000" });
-    expect(res.json().run.sections[0].items[1]).toMatchObject({ title: "Wanderkarte", description: "1:25000" });
+    res = await pubWrite("PUT", `${token}/items/${karte.id}`, { title: "Wanderkarte" });
+    expect(res.json().run.sections[0].items[1]).toMatchObject({ title: "Wanderkarte" });
     res = await pubWrite("POST", `${token}/sections/${sectionId}/items`, { title: "Proviant", position: 0 });
     expect(res.statusCode).toBe(201);
     const proviantId = res.json().itemId as string;
@@ -271,7 +269,7 @@ describe("Öffentlicher Zugriff ohne Konto (F-40, F-43, F-44)", () => {
     const token = tokenOf((await share(run, { access: "anyone", permission: "edit" })).json().share.url);
     const routes: [string, string][] = [
       ["PUT", `/api/v1/runs/${run.id}`], ["DELETE", `/api/v1/runs/${run.id}`], ["POST", `/api/v1/runs/${run.id}/archive`],
-      ["POST", `/api/v1/runs/${run.id}/sections`], ["PUT", `/api/v1/runs/${run.id}/share`], ["DELETE", `/api/v1/runs/${run.id}/share`],
+      ["POST", `/api/v1/runs/${run.id}/templates`], ["PUT", `/api/v1/runs/${run.id}/share`], ["DELETE", `/api/v1/runs/${run.id}/share`],
     ];
     for (const [method, url] of routes) {
       const res = await ctx.app.inject({

@@ -151,7 +151,7 @@ export default function RunsPage({ status }: { status: "active" | "archived" }) 
                   <div className="min-w-0 flex-1">
                     <Link to={`/runs/${r.id}`} className="text-base font-semibold text-text no-underline hover:underline">{r.title}</Link>{" "}
                     <ShareBadgeView share={r.share} />
-                    <p className="hint m-0">{r.sectionTitles.join(" · ") || t("runs.noSections")} · {archived && r.archivedAt ? t("runs.archivedOn", { date: date(r.archivedAt) }) : t("runs.changed", { date: date(r.updatedAt) })}</p>
+                    <p className="hint m-0">{r.itemTitles.join(" · ") || t("runs.noSections")} · {archived && r.archivedAt ? t("runs.archivedOn", { date: date(r.archivedAt) }) : t("runs.changed", { date: date(r.updatedAt) })}</p>
                   </div>
                   {archived && (
                     <div className="flex gap-2">

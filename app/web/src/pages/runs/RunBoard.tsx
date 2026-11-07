@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import type { Progress, RunItemNode, RunSection } from "../../api/types";
 import { Button, Dialog } from "../../components/ui";
 import {
-  descendantIds, findNode, getBoardProjection, indentTarget, isSamePlace, moveDownTarget, moveUpTarget, outdentTarget,
+  countNodes, descendantIds, findNode, getBoardProjection, indentTarget, isSamePlace, moveDownTarget, moveUpTarget, outdentTarget,
   type BoardRow, type BoardTarget, type MoveTarget,
 } from "../../lib/tree";
 
@@ -19,11 +19,8 @@ export interface BoardActions {
   onCheck: (item: RunItemNode, checked: boolean) => Promise<void>;
   onAdd: (sectionId: string, title: string, parentItemId: string | null) => Promise<void>;
   onDelete: (item: RunItemNode) => Promise<void>;
-  onDeleteSection?: (section: RunSection) => Promise<void>;
-  /** Punkt verschieben: Ziehen (auch in einen anderen Abschnitt, Ebene per horizontaler Bewegung) und Pfeil-Schaltflächen. */
+  /** Punkt verschieben: Ziehen (Ebene per horizontaler Bewegung) und Pfeil-Schaltflächen. */
   onMoveItem?: (item: RunItemNode, target: BoardTarget) => Promise<void>;
-  /** Abschnitt an eine neue Position verschieben (Pfeil-Schaltflächen). */
-  onMoveSection?: (section: RunSection, position: number) => Promise<void>;
 }
 
 export function ProgressBar({ progress, label }: { progress: Progress; label: string }) {
@@ -107,7 +104,6 @@ function RowBody({ node, sectionId, sectionItems, readOnly, draggable, adding, a
           {pending && <span className="badge">{t("offline.waiting")}</span>}
           {hasChildren && <span className="badge" aria-label={t("runs.subProgress", { done: node.childProgress.done, total: node.childProgress.total })}>{node.childProgress.done}/{node.childProgress.total}</span>}
         </div>
-        {node.description && <p className="hint m-0 whitespace-pre-wrap break-words px-2 pb-1">{node.description}</p>}
       </div>
       {!readOnly && !pending && (
         <div role="group" aria-label={t("runs.actionsFor", { title: node.title })} className="row-actions flex flex-wrap gap-1 self-center">
@@ -173,7 +169,6 @@ function EndRow({ id, dragging, empty }: { id: string; dragging: boolean; empty:
 export function RunBoard({ sections, readOnly, hideDone = false, actions }: { sections: RunSection[]; readOnly: boolean; hideDone?: boolean; actions: BoardActions }) {
   const { t } = useTranslation();
   const [toDelete, setToDelete] = useState<RunItemNode | null>(null);
-  const [sectionToDelete, setSectionToDelete] = useState<RunSection | null>(null);
   const [busy, setBusy] = useState(false);
   const [addingUnder, setAddingUnder] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -214,29 +209,15 @@ export function RunBoard({ sections, readOnly, hideDone = false, actions }: { se
     setBusy(true);
     try {
       if (toDelete) await actions.onDelete(toDelete);
-      if (sectionToDelete && actions.onDeleteSection) await actions.onDeleteSection(sectionToDelete);
-    } finally { setBusy(false); setToDelete(null); setSectionToDelete(null); }
+    } finally { setBusy(false); setToDelete(null); }
   }
 
-  const renderSection = (s: RunSection, index: number) => {
+  const renderSection = (s: RunSection) => {
     const sectionRows = rows.filter((r) => r.sectionId === s.id);
     const visibleRows = activeId ? sectionRows.filter((r) => !descendants.has(r.id)) : sectionRows; // Unterpunkte wandern beim Ziehen mit
     return (
-      <section key={s.id} className="card" aria-labelledby={`sec-${s.id}`}>
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 id={`sec-${s.id}`} className="m-0 flex-1 text-lg font-semibold">{s.title}</h2>
-          <div className="w-40"><ProgressBar progress={s.progress} label={t("runs.sectionProgress", { title: s.title })} /></div>
-          {!readOnly && actions.onMoveSection && (
-            <div role="group" aria-label={t("runs.sectionOrder", { title: s.title })} className="flex gap-1">
-              <button type="button" className="btn btn-sm px-2" disabled={index === 0} onClick={() => void actions.onMoveSection?.(s, index - 1)} aria-label={t("runs.sectionUp", { title: s.title })} title={t("items.upShort")}>↑</button>
-              <button type="button" className="btn btn-sm px-2" disabled={index === sections.length - 1} onClick={() => void actions.onMoveSection?.(s, index + 1)} aria-label={t("runs.sectionDown", { title: s.title })} title={t("items.downShort")}>↓</button>
-            </div>
-          )}
-          {!readOnly && actions.onDeleteSection && (
-            <Button size="sm" variant="danger" onClick={() => setSectionToDelete(s)} aria-label={t("runs.removeSection", { title: s.title })}>{t("runs.removeSectionShort")}</Button>
-          )}
-        </div>
-        <ul className="m-0 mt-3 grid list-none gap-2 p-0" aria-label={s.title}>
+      <section key={s.id} className="card" aria-label={t("runs.itemsLabel")}>
+        <ul className="m-0 grid list-none gap-2 p-0" aria-label={t("runs.itemsLabel")}>
           {visibleRows.map((r) => {
             if (r.isEnd) return <EndRow key={r.id} id={r.id} dragging={activeId !== null} empty={s.items.length === 0} />;
             const common: RowProps = {
@@ -258,7 +239,7 @@ export function RunBoard({ sections, readOnly, hideDone = false, actions }: { se
         </ul>
         {s.items.length === 0 && <p className="hint">{t("runs.emptySection")}</p>}
         {hideDone && s.items.length > 0 && s.items.every(isDone) && <p className="hint">{t("runs.allHidden")}</p>}
-        {!readOnly && <div className="mt-3"><AddForm label={t("runs.addLabel", { title: s.title })} onAdd={(title) => actions.onAdd(s.id, title, null)} /></div>}
+        {!readOnly && <div className="mt-3"><AddForm label={t("runs.addLabel")} onAdd={(title) => actions.onAdd(s.id, title, null)} /></div>}
       </section>
     );
   };
@@ -296,11 +277,11 @@ export function RunBoard({ sections, readOnly, hideDone = false, actions }: { se
       ) : body}
 
       <Dialog
-        open={toDelete !== null || sectionToDelete !== null} onClose={() => { setToDelete(null); setSectionToDelete(null); }}
-        title={toDelete ? t("runs.deleteItemTitle") : t("runs.removeSectionTitle")}
-        footer={<><Button onClick={() => { setToDelete(null); setSectionToDelete(null); }}>{t("common.cancel")}</Button><Button variant="danger" disabled={busy} onClick={() => void confirmDelete()}>{t("common.delete")}</Button></>}
+        open={toDelete !== null} onClose={() => setToDelete(null)}
+        title={t("runs.deleteItemTitle")}
+        footer={<><Button onClick={() => setToDelete(null)}>{t("common.cancel")}</Button><Button variant="danger" disabled={busy} onClick={() => void confirmDelete()}>{t("common.delete")}</Button></>}
       >
-        <p className="m-0">{toDelete ? t("runs.deleteItemText", { title: toDelete.title, count: toDelete.childProgress.total }) : t("runs.removeSectionText", { title: sectionToDelete?.title })}</p>
+        <p className="m-0">{toDelete ? t("runs.deleteItemText", { title: toDelete.title, count: countNodes(toDelete.children) }) : ""}</p>
       </Dialog>
     </div>
   );

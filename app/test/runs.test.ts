@@ -10,7 +10,6 @@ interface Section { id: string; title: string; position: number; sourceTemplateI
 interface Run { id: string; title: string; status: string; progress: Progress; sections: Section[] }
 
 const names = (items: Item[]): unknown[] => items.map((n) => (n.children.length ? [n.title, names(n.children)] : n.title));
-const sectionTitles = (run: Run) => run.sections.map((s) => s.title);
 
 let ctx: ReturnType<typeof setupApp>;
 let anna: Client;
@@ -39,31 +38,30 @@ const createRun = async (client: Client, title: string, templateIds: string[] = 
 const getRun = async (client: Client, id: string) => (await client.get(`/api/v1/runs/${id}`)).json().run as Run;
 
 describe("Durchführung aus mehreren Vorlagen (F-21)", () => {
-  it("kopiert die Vorlagen als Abschnitte in Auswahlreihenfolge samt Unterpunkten", async () => {
+  it("kopiert jede Vorlage als Überpunkt in Auswahlreihenfolge samt Unterpunkten (ein interner Abschnitt)", async () => {
     const tag = await template(anna, "Tagesausflug", [["Rucksack", ["Sonnencreme", "Regenjacke"]], "Route prüfen"]);
     const therme = await template(anna, "Therme", ["Badesachen", "Handtuch"]);
     const { status, run } = await createRun(anna, "Ausflug Füssen mit Flo", [therme, tag]);
     expect(status).toBe(201);
-    expect(sectionTitles(run)).toEqual(["Therme", "Tagesausflug"]);
-    expect(run.sections.map((s) => s.position)).toEqual([0, 1]);
-    expect(names(run.sections[0]!.items)).toEqual(["Badesachen", "Handtuch"]);
-    expect(names(run.sections[1]!.items)).toEqual([["Rucksack", ["Sonnencreme", "Regenjacke"]], "Route prüfen"]);
-    expect(run.sections[1]!.sourceTemplateId).toBe(tag);
+    expect(run.sections).toHaveLength(1);
+    expect(names(run.sections[0]!.items)).toEqual([["Therme", ["Badesachen", "Handtuch"]], ["Tagesausflug", [["Rucksack", ["Sonnencreme", "Regenjacke"]], "Route prüfen"]]]);
     expect(run.status).toBe("active");
-    expect(run.progress).toEqual({ done: 0, total: 6 });
+    expect(run.progress).toEqual({ done: 0, total: 2 }); // zählt nur die oberste Ebene
+    expect(run.sections[0]!.items[1]!.childProgress).toEqual({ done: 0, total: 2 });
   });
 
-  it("legt auch eine leere Durchführung ohne Vorlage an", async () => {
+  it("legt auch eine leere Durchführung ohne Vorlage an (mit leerem internen Abschnitt)", async () => {
     const { status, run } = await createRun(anna, "Leer");
     expect(status).toBe(201);
-    expect(run.sections).toEqual([]);
+    expect(run.sections).toHaveLength(1);
+    expect(run.sections[0]!.items).toEqual([]);
     expect(run.progress).toEqual({ done: 0, total: 0 });
   });
 
   it("erlaubt dieselbe Vorlage mehrfach", async () => {
     const t = await template(anna, "Wandern", ["Schuhe"]);
     const { run } = await createRun(anna, "Doppelt", [t, t]);
-    expect(sectionTitles(run)).toEqual(["Wandern", "Wandern"]);
+    expect(names(run.sections[0]!.items)).toEqual([["Wandern", ["Schuhe"]], ["Wandern", ["Schuhe"]]]);
     expect(run.progress.total).toBe(2);
   });
 
@@ -93,62 +91,51 @@ describe("Durchführung aus mehreren Vorlagen (F-21)", () => {
     await anna.put(`/api/v1/templates/${t}`, { title: "Umbenannt" });
     await anna.del(`/api/v1/templates/${t}`);
     const after = await getRun(anna, run.id);
-    expect(sectionTitles(after)).toEqual(["Vorlage"]);
-    expect(names(after.sections[0]!.items)).toEqual(["A", "B"]);
+    expect(names(after.sections[0]!.items)).toEqual([["Vorlage", ["A", "B"]]]);
   });
 
-  it("setzt den Verweis auf die Quellvorlage auf null, wenn die Vorlage endgültig gelöscht wird", async () => {
-    const t = await template(anna, "V", ["A"]);
-    const { run } = await createRun(anna, "Lauf", [t]);
-    ctx.db.delete(schema.templates).where(eq(schema.templates.id, t)).run();
-    const after = await getRun(anna, run.id);
-    expect(after.sections[0]!.sourceTemplateId).toBeNull();
-    expect(names(after.sections[0]!.items)).toEqual(["A"]);
+  it("löst eingefügte Vorlagen (Verweise) auf: die Punkte der anderen Vorlage stehen als Unterpunkte", async () => {
+    const hygiene = await template(anna, "Hygiene", ["Zahnpasta", "Zahnbürste"]);
+    const nacht = (await anna.post("/api/v1/templates", {
+      title: "Übernachten",
+      items: [{ title: "Schlafoberteil" }, { refTemplateId: hygiene }],
+    })).json().template.id as string;
+    const { run } = await createRun(anna, "Reise", [nacht]);
+    expect(names(run.sections[0]!.items)).toEqual([["Übernachten", ["Schlafoberteil", ["Hygiene", ["Zahnpasta", "Zahnbürste"]]]]]);
+    // gelöschte Vorlage: ihre Punkte fehlen
+    await anna.del(`/api/v1/templates/${hygiene}`);
+    const again = await createRun(anna, "Reise 2", [nacht]);
+    expect(names(again.run.sections[0]!.items)).toEqual([["Übernachten", ["Schlafoberteil"]]]);
   });
 });
 
 describe("Vorlagen nachträglich ergänzen (F-22)", () => {
-  it("hängt neue Abschnitte an, auch dieselbe Vorlage nochmals", async () => {
+  it("hängt neue Überpunkte an, auch dieselbe Vorlage nochmals", async () => {
     const a = await template(anna, "A", ["a1"]);
     const b = await template(anna, "B", ["b1", "b2"]);
     const { run } = await createRun(anna, "Lauf", [a]);
-    const res = await anna.post(`/api/v1/runs/${run.id}/sections`, { templateIds: [b, a] });
+    const res = await anna.post(`/api/v1/runs/${run.id}/templates`, { templateIds: [b, a] });
     expect(res.statusCode).toBe(201);
     const after = res.json().run as Run;
-    expect(sectionTitles(after)).toEqual(["A", "B", "A"]);
-    expect(after.sections.map((s) => s.position)).toEqual([0, 1, 2]);
-    expect(after.progress.total).toBe(4);
+    expect(names(after.sections[0]!.items)).toEqual([["A", ["a1"]], ["B", ["b1", "b2"]], ["A", ["a1"]]]);
+    expect(after.progress.total).toBe(3);
   });
 
-  it("legt einen eigenen leeren Abschnitt an und nimmt eigene Punkte auf", async () => {
+  it("nimmt eigene Punkte direkt in der Durchführung auf (einzeln und als Baum)", async () => {
     const { run } = await createRun(anna, "Lauf");
-    const sec = (await anna.post(`/api/v1/runs/${run.id}/sections`, { title: "Eigene Punkte" })).json().run.sections[0] as Section;
-    expect(sec.sourceTemplateId).toBeNull();
-    const added = await anna.post(`/api/v1/run-sections/${sec.id}/items`, { title: "Kuchen mitbringen" });
-    expect(added.statusCode).toBe(201);
-    expect(names(added.json().run.sections[0].items)).toEqual(["Kuchen mitbringen"]);
+    const one = await anna.post(`/api/v1/runs/${run.id}/items`, { title: "Kuchen mitbringen" });
+    expect(one.statusCode).toBe(201);
+    expect(names(one.json().run.sections[0].items)).toEqual(["Kuchen mitbringen"]);
+    const bulk = await anna.post(`/api/v1/runs/${run.id}/items`, { items: [{ title: "Übernachten", children: [{ title: "Schlafhose" }, { title: "Schlafoberteil" }] }] });
+    expect(bulk.statusCode).toBe(201);
+    expect(names(bulk.json().run.sections[0].items)).toEqual(["Kuchen mitbringen", ["Übernachten", ["Schlafhose", "Schlafoberteil"]]]);
   });
 
   it("lehnt leere Anfragen und fremde/gelöschte Vorlagen ab", async () => {
     const { run } = await createRun(anna, "Lauf");
-    expect((await anna.post(`/api/v1/runs/${run.id}/sections`, {})).statusCode).toBe(400);
-    expect((await anna.post(`/api/v1/runs/${run.id}/sections`, { templateIds: [] })).statusCode).toBe(400);
-    expect((await anna.post(`/api/v1/runs/${run.id}/sections`, { templateIds: [crypto.randomUUID()] })).statusCode).toBe(422);
-  });
-
-  it("entfernt einzelne Abschnitte samt Punkten und nummeriert neu; sortiert Abschnitte um", async () => {
-    const a = await template(anna, "A", ["a1"]);
-    const b = await template(anna, "B", ["b1"]);
-    const c = await template(anna, "C", ["c1"]);
-    const { run } = await createRun(anna, "Lauf", [a, b, c]);
-    const [sa, sb, sc] = run.sections as [Section, Section, Section];
-    let res = (await anna.del(`/api/v1/run-sections/${sb.id}`)).json().run as Run;
-    expect(sectionTitles(res)).toEqual(["A", "C"]);
-    expect(res.sections.map((s) => s.position)).toEqual([0, 1]);
-    expect(ctx.db.select().from(schema.runItems).all()).toHaveLength(2);
-    res = (await anna.post(`/api/v1/run-sections/${sc.id}/move`, { position: 0 })).json().run as Run;
-    expect(sectionTitles(res)).toEqual(["C", "A"]);
-    expect(sa.id).toBe(res.sections[1]!.id);
+    expect((await anna.post(`/api/v1/runs/${run.id}/templates`, {})).statusCode).toBe(400);
+    expect((await anna.post(`/api/v1/runs/${run.id}/templates`, { templateIds: [] })).statusCode).toBe(400);
+    expect((await anna.post(`/api/v1/runs/${run.id}/templates`, { templateIds: [crypto.randomUUID()] })).statusCode).toBe(422);
   });
 });
 
@@ -183,21 +170,41 @@ describe("Abhaken und Fortschritt (F-23, F-24)", () => {
     expect(find((await check(id, true)).json().run as Run, "solo").checkedAt).toBe(first);
   });
 
-  it("berechnet Fortschritt gesamt, je Abschnitt und je Elternpunkt (x/y)", async () => {
+  it("zählt nur die direkte Ebene: gesamt (oberste Ebene) und je Überpunkt (direkte Unterpunkte)", async () => {
     const { run } = await setup();
-    await check(find(run, "k1").id, true);
-    await check(find(run, "x").id, true);
-    const res = (await check(find(run, "solo").id, true)).json().run as Run;
-    expect(res.progress).toEqual({ done: 3, total: 5 });
-    expect(res.sections.map((s) => s.progress)).toEqual([{ done: 2, total: 4 }, { done: 1, total: 1 }]);
+    let res = (await check(find(run, "k1").id, true)).json().run as Run;
     expect(find(res, "Eltern").childProgress).toEqual({ done: 1, total: 2 });
+    expect(find(res, "Eltern").isChecked).toBe(false);
+    expect(res.progress).toEqual({ done: 0, total: 2 });
+    res = (await check(find(run, "k2").id, true)).json().run as Run;
+    expect(find(res, "Eltern").isChecked).toBe(true); // alle Unterpunkte erledigt → Überpunkt erledigt
+    expect(find(res, "Eltern").childProgress).toEqual({ done: 2, total: 2 });
+    expect(find(res, "Eins").childProgress).toEqual({ done: 1, total: 2 }); // Eltern erledigt, solo offen
+    expect(find(res, "Eins").isChecked).toBe(false);
+    res = (await check(find(run, "solo").id, true)).json().run as Run;
+    expect(find(res, "Eins").isChecked).toBe(true);
+    expect(res.progress).toEqual({ done: 1, total: 2 });
   });
 
-  it("hakt Elternpunkte unabhängig von Unterpunkten ab", async () => {
+  it("Abhaken eines Überpunkts hakt alle Unterpunkte ab, Zurücknehmen nimmt sie zurück", async () => {
     const { run } = await setup();
-    const res = (await check(find(run, "Eltern").id, true)).json().run as Run;
-    expect(find(res, "Eltern").isChecked).toBe(true);
-    expect(find(res, "k1").isChecked).toBe(false);
+    let res = (await check(find(run, "Eins").id, true)).json().run as Run;
+    for (const t of ["Eins", "Eltern", "k1", "k2", "solo"]) expect(find(res, t).isChecked).toBe(true);
+    expect(find(res, "Zwei").isChecked).toBe(false);
+    res = (await check(find(run, "k1").id, false)).json().run as Run; // ein Unterpunkt offen → alle Überpunkte darüber offen
+    expect(find(res, "Eltern").isChecked).toBe(false);
+    expect(find(res, "Eins").isChecked).toBe(false);
+    expect(find(res, "k2").isChecked).toBe(true);
+    res = (await check(find(run, "Eins").id, false)).json().run as Run;
+    for (const t of ["Eins", "Eltern", "k1", "k2", "solo"]) expect(find(res, t).isChecked).toBe(false);
+  });
+
+  it("neue offene Unterpunkte machen einen erledigten Überpunkt wieder offen", async () => {
+    const { run } = await setup();
+    await check(find(run, "Eltern").id, true);
+    const res = (await anna.post(`/api/v1/runs/${run.id}/items`, { title: "k3", parentItemId: find(run, "Eltern").id })).json().run as Run;
+    expect(find(res, "Eltern").isChecked).toBe(false);
+    expect(find(res, "Eltern").childProgress).toEqual({ done: 2, total: 3 });
   });
 
   it("aktualisiert updatedAt der Durchführung und führt sie in der Liste mit Fortschritt", async () => {
@@ -206,7 +213,7 @@ describe("Abhaken und Fortschritt (F-23, F-24)", () => {
     await new Promise((r) => setTimeout(r, 5));
     await check(find(run, "x").id, true);
     const list = (await anna.get("/api/v1/runs")).json();
-    expect(list.runs[0]).toMatchObject({ title: "Lauf", sectionTitles: ["Eins", "Zwei"], progress: { done: 1, total: 5 } });
+    expect(list.runs[0]).toMatchObject({ title: "Lauf", itemTitles: ["Eins", "Zwei"], progress: { done: 1, total: 2 } });
     expect(list.runs[0].updatedAt).toBeGreaterThan(created);
   });
 });
@@ -214,72 +221,62 @@ describe("Abhaken und Fortschritt (F-23, F-24)", () => {
 describe("Eigene Punkte bearbeiten (F-25)", () => {
   async function setup() {
     const t1 = await template(anna, "Eins", ["a", "b", "c"]);
-    const t2 = await template(anna, "Zwei", [["p", ["p1"]]]);
-    const { run } = await createRun(anna, "Lauf", [t1, t2]);
+    const { run } = await createRun(anna, "Lauf", [t1]);
+    await anna.post(`/api/v1/runs/${run.id}/items`, { items: [{ title: "p", children: [{ title: "p1" }] }] });
+    const current = await getRun(anna, run.id);
     const byTitle = (title: string) => {
       let found!: Item;
       const walk = (items: Item[]) => items.forEach((i) => { if (i.title === title) found = i; walk(i.children); });
-      run.sections.forEach((s) => walk(s.items));
+      current.sections.forEach((s) => walk(s.items));
       return found.id;
     };
-    return { run, s1: run.sections[0]!, s2: run.sections[1]!, byTitle };
+    return { run: current, byTitle };
   }
 
-  it("fügt Punkte und Unterpunkte ein, ändert Titel/Beschreibung und löscht samt Unterpunkten", async () => {
-    const { run, s1, byTitle } = await setup();
-    let res = (await anna.post(`/api/v1/run-sections/${s1.id}/items`, { title: "neu", position: 1 })).json().run as Run;
-    expect(names(res.sections[0]!.items)).toEqual(["a", "neu", "b", "c"]);
-    res = (await anna.post(`/api/v1/run-sections/${s1.id}/items`, { title: "a-sub", parentItemId: byTitle("a") })).json().run as Run;
-    expect(names(res.sections[0]!.items)).toEqual([["a", ["a-sub"]], "neu", "b", "c"]);
-    res = (await anna.put(`/api/v1/run-items/${byTitle("b")}`, { title: "B!", description: "Details" })).json().run as Run;
-    expect(res.sections[0]!.items[2]).toMatchObject({ title: "B!" });
-    res = (await anna.del(`/api/v1/run-items/${byTitle("a")}`)).json().run as Run;
-    expect(names(res.sections[0]!.items)).toEqual(["neu", "B!", "c"]);
-    expect(res.sections[0]!.items.map((i) => (i as Item & { position: number }).position)).toEqual([0, 1, 2]);
-    expect(run.sections).toHaveLength(2);
+  it("fügt Punkte und Unterpunkte ein, ändert den Titel und löscht samt Unterpunkten", async () => {
+    const { run, byTitle } = await setup();
+    let res = (await anna.post(`/api/v1/runs/${run.id}/items`, { title: "neu", parentItemId: byTitle("Eins"), position: 1 })).json().run as Run;
+    expect(names(res.sections[0]!.items)).toEqual([["Eins", ["a", "neu", "b", "c"]], ["p", ["p1"]]]);
+    res = (await anna.put(`/api/v1/run-items/${byTitle("b")}`, { title: "B!" })).json().run as Run;
+    expect(names(res.sections[0]!.items)).toEqual([["Eins", ["a", "neu", "B!", "c"]], ["p", ["p1"]]]);
+    res = (await anna.del(`/api/v1/run-items/${byTitle("Eins")}`)).json().run as Run;
+    expect(names(res.sections[0]!.items)).toEqual([["p", ["p1"]]]);
+    expect(res.sections[0]!.items.map((i) => (i as Item & { position: number }).position)).toEqual([0]);
   });
 
-  it("lehnt Elternpunkte aus anderen Abschnitten beim Anlegen ab", async () => {
-    const { s1, byTitle } = await setup();
-    const res = await anna.post(`/api/v1/run-sections/${s1.id}/items`, { title: "x", parentItemId: byTitle("p") });
+  it("lehnt unbekannte Elternpunkte beim Anlegen ab", async () => {
+    const { run } = await setup();
+    const res = await anna.post(`/api/v1/runs/${run.id}/items`, { title: "x", parentItemId: crypto.randomUUID() });
     expect(res.statusCode).toBe(404);
     expect(res.json().error).toBe("parent_not_found");
   });
 
-  it("sortiert um und verschiebt zwischen Ebenen und Abschnitten samt Unterpunkten", async () => {
-    const { s1, s2, byTitle } = await setup();
+  it("sortiert um und verschiebt zwischen Ebenen samt Unterpunkten", async () => {
+    const { byTitle } = await setup();
     const move = (id: string, body: object) => anna.post(`/api/v1/run-items/${id}/move`, body);
-    let res = (await move(byTitle("c"), { parentItemId: null, position: 0 })).json().run as Run;
-    expect(names(res.sections[0]!.items)).toEqual(["c", "a", "b"]);
-    res = (await move(byTitle("a"), { parentItemId: byTitle("b"), position: 0 })).json().run as Run;
-    expect(names(res.sections[0]!.items)).toEqual(["c", ["b", ["a"]]]);
-    // Teilbaum "p" (mit p1) in Abschnitt 1 verschieben
-    res = (await move(byTitle("p"), { sectionId: s1.id, parentItemId: null, position: 1 })).json().run as Run;
-    expect(names(res.sections[0]!.items)).toEqual(["c", ["p", ["p1"]], ["b", ["a"]]]);
-    expect(res.sections[1]!.items).toEqual([]);
-    const rows = ctx.db.select().from(schema.runItems).all();
-    expect(rows.find((r) => r.title === "p1")!.sectionId).toBe(s1.id); // Nachkomme zieht mit
-    expect(s2.id).not.toBe(s1.id);
+    let res = (await move(byTitle("c"), { parentItemId: byTitle("Eins"), position: 0 })).json().run as Run;
+    expect(names(res.sections[0]!.items)).toEqual([["Eins", ["c", "a", "b"]], ["p", ["p1"]]]);
+    res = (await move(byTitle("p"), { parentItemId: byTitle("a"), position: 0 })).json().run as Run;
+    expect(names(res.sections[0]!.items)).toEqual([["Eins", ["c", ["a", [["p", ["p1"]]]], "b"]]]);
+    expect(res.progress).toEqual({ done: 0, total: 1 });
   });
 
-  it("verbietet Zyklen, fremde Abschnitte/Eltern und zu große Tiefe", async () => {
-    const { byTitle } = await setup();
+  it("verbietet Zyklen, unbekannte Eltern und zu große Tiefe", async () => {
+    const { run, byTitle } = await setup();
     const move = (id: string, body: object) => anna.post(`/api/v1/run-items/${id}/move`, body);
     const cyc = await move(byTitle("p"), { parentItemId: byTitle("p1"), position: 0 });
     expect([cyc.statusCode, cyc.json().error]).toEqual([422, "cycle"]);
-    const wrongParent = await move(byTitle("a"), { parentItemId: byTitle("p"), position: 0 }); // p liegt in anderem Abschnitt
-    expect([wrongParent.statusCode, wrongParent.json().error]).toEqual([404, "parent_not_found"]);
-    const noSection = await move(byTitle("a"), { sectionId: crypto.randomUUID(), parentItemId: null, position: 0 });
-    expect([noSection.statusCode, noSection.json().error]).toEqual([404, "section_not_found"]);
+    const noParent = await move(byTitle("a"), { parentItemId: crypto.randomUUID(), position: 0 });
+    expect([noParent.statusCode, noParent.json().error]).toEqual([404, "parent_not_found"]);
 
     let parent: string | null = null;
-    const { run } = await createRun(anna, "Tief");
-    const sec = (await anna.post(`/api/v1/runs/${run.id}/sections`, { title: "S" })).json().run.sections[0] as Section;
+    const deep = await createRun(anna, "Tief");
     for (let i = 1; i <= 50; i++) {
-      parent = (await anna.post(`/api/v1/run-sections/${sec.id}/items`, { title: `E${i}`, parentItemId: parent })).json().itemId;
+      parent = (await anna.post(`/api/v1/runs/${deep.run.id}/items`, { title: `E${i}`, parentItemId: parent })).json().itemId;
     }
-    const tooDeep = await anna.post(`/api/v1/run-sections/${sec.id}/items`, { title: "zu tief", parentItemId: parent });
+    const tooDeep = await anna.post(`/api/v1/runs/${deep.run.id}/items`, { title: "zu tief", parentItemId: parent });
     expect([tooDeep.statusCode, tooDeep.json().error]).toEqual([422, "too_deep"]);
+    expect(run.id).toBeTruthy();
   });
 });
 
@@ -322,19 +319,18 @@ describe("Archivierte Durchführungen sind schreibgeschützt", () => {
     const { run } = await createRun(anna, "Lauf", [t]);
     ctx.db.update(schema.runs).set({ status: "archived" }).run();
     const section = run.sections[0]!;
-    const item = section.items[0]!;
+    const item = section.items[0]!.children[0]!;
     expect((await anna.get(`/api/v1/runs/${run.id}`)).statusCode).toBe(200);
     const results = await Promise.all([
       anna.put(`/api/v1/runs/${run.id}`, { title: "X" }),
-      anna.post(`/api/v1/runs/${run.id}/sections`, { title: "S" }),
-      anna.del(`/api/v1/run-sections/${section.id}`),
-      anna.post(`/api/v1/run-sections/${section.id}/move`, { position: 0 }),
+      anna.post(`/api/v1/runs/${run.id}/templates`, { templateIds: [t] }),
+      anna.post(`/api/v1/runs/${run.id}/items`, { title: "n" }),
       anna.post(`/api/v1/run-sections/${section.id}/items`, { title: "n" }),
       anna.put(`/api/v1/run-items/${item.id}`, { isChecked: true }),
       anna.del(`/api/v1/run-items/${item.id}`),
       anna.post(`/api/v1/run-items/${item.id}/move`, { parentItemId: null, position: 0 }),
     ]);
-    expect(results.map((r) => [r.statusCode, r.json().error])).toEqual(Array(8).fill([409, "run_not_active"]));
+    expect(results.map((r) => [r.statusCode, r.json().error])).toEqual(Array(7).fill([409, "run_not_active"]));
     expect(ctx.db.select().from(schema.runItems).get()!.isChecked).toBe(false);
   });
 });
@@ -350,17 +346,16 @@ describe("Mandantentrennung (N-04)", () => {
       bob.get(`/api/v1/runs/${run.id}`),
       bob.put(`/api/v1/runs/${run.id}`, { title: "Gehackt" }),
       bob.del(`/api/v1/runs/${run.id}`),
-      bob.post(`/api/v1/runs/${run.id}/sections`, { title: "S" }),
-      bob.del(`/api/v1/run-sections/${section.id}`),
-      bob.post(`/api/v1/run-sections/${section.id}/move`, { position: 0 }),
+      bob.post(`/api/v1/runs/${run.id}/templates`, { templateIds: [t] }),
+      bob.post(`/api/v1/runs/${run.id}/items`, { title: "x" }),
       bob.post(`/api/v1/run-sections/${section.id}/items`, { title: "x" }),
       bob.put(`/api/v1/run-items/${item.id}`, { isChecked: true }),
       bob.del(`/api/v1/run-items/${item.id}`),
       bob.post(`/api/v1/run-items/${item.id}/move`, { parentItemId: null, position: 0 }),
     ]);
-    expect(results.map((r) => r.statusCode)).toEqual(Array(10).fill(404));
+    expect(results.map((r) => r.statusCode)).toEqual(Array(9).fill(404));
     expect((await bob.get("/api/v1/runs")).json().total).toBe(0);
-    expect(names((await getRun(anna, run.id)).sections[0]!.items)).toEqual(["a"]);
+    expect(names((await getRun(anna, run.id)).sections[0]!.items)).toEqual([["V", ["a"]]]);
   });
 
   it("verlangt Anmeldung", async () => {

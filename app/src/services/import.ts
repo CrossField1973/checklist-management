@@ -5,6 +5,7 @@ import type { Db } from "../db/index.js";
 import { schema } from "../db/index.js";
 import { EXPORT_FORMAT, EXPORT_VERSION } from "./export.js";
 import { detectDelimiter, parseCsv, stripBom, unguardFormula } from "./csv.js";
+import { normalizeChecks } from "./run-items.js";
 import { MAX_DEPTH } from "./template-items.js";
 
 /** Grenzen schützen vor versehentlich riesigen oder bösartigen Dateien. */
@@ -13,21 +14,20 @@ export const LIMITS = { templates: 2000, runs: 2000, items: 50_000, rows: 50_000
 export interface ImportIssue { path: string; message: string }
 
 // ---------- Zielstruktur (gleich für JSON und CSV) ----------
-interface PItem { title: string; description: string | null; isChecked: boolean; checkedAt: number | null; children: PItem[] }
-interface PTemplate { title: string; description: string | null; tags: string[]; items: PItem[] }
+interface PItem { title: string; isChecked: boolean; checkedAt: number | null; children: PItem[] }
+interface PTemplate { title: string; tags: string[]; items: PItem[] }
 interface PRun { title: string; status: "active" | "archived"; sections: { title: string; items: PItem[] }[] }
 interface PTag { name: string; color?: string }
 export interface ImportPlan { tags: PTag[]; templates: PTemplate[]; runs: PRun[] }
 
 // ---------- JSON-Schema der Eingabe ----------
 const text = (max: number) => z.string().trim().min(1, "darf nicht leer sein").max(max, `höchstens ${max} Zeichen`);
-const description = z.string().max(5000, "höchstens 5000 Zeichen").nullable().optional();
 const time = z.union([z.string().datetime({ offset: true }), z.number().int().nonnegative()]).nullable().optional();
 
-interface RawItem { title: string; description?: string | null; isChecked?: boolean; checkedAt?: string | number | null; children?: RawItem[] }
+interface RawItem { title: string; isChecked?: boolean; checkedAt?: string | number | null; children?: RawItem[] }
 const itemSchema: z.ZodType<RawItem> = z.lazy(() =>
   z.object({
-    title: text(200), description,
+    title: text(200),
     isChecked: z.boolean().optional(), checkedAt: time,
     children: z.array(itemSchema).optional(),
   }),
@@ -38,7 +38,7 @@ const docSchema = z.object({
   version: z.literal(EXPORT_VERSION, { error: `Nur Version ${EXPORT_VERSION} wird unterstützt` }).optional(),
   tags: z.array(z.object({ name: text(50), color: z.string().regex(HEX_COLOR, "Farbe muss das Format #RRGGBB haben").optional() })).optional(),
   templates: z.array(z.object({
-    title: text(200), description, tags: z.array(text(50)).optional(), items: z.array(itemSchema).optional(),
+    title: text(200), tags: z.array(text(50)).optional(), items: z.array(itemSchema).optional(),
   })).optional(),
   runs: z.array(z.object({
     title: text(200),
@@ -62,7 +62,7 @@ function convertItems(raw: RawItem[] | undefined, isRun: boolean, path: string, 
     if (depth > MAX_DEPTH) issues.push({ path: here, message: `Verschachtelung tiefer als ${MAX_DEPTH} Ebenen` });
     const checked = isRun ? Boolean(r.isChecked) : false;
     return {
-      title: r.title, description: r.description ?? null, isChecked: checked,
+      title: r.title, isChecked: checked,
       checkedAt: checked ? (toMs(r.checkedAt) ?? Date.now()) : null,
       children: depth > MAX_DEPTH ? [] : convertItems(r.children, isRun, `${here}.children`, depth + 1, issues, counter),
     };
@@ -92,7 +92,7 @@ export function planFromJson(input: unknown): { plan: ImportPlan; issues: Import
   const plan: ImportPlan = {
     tags: d.tags ?? [],
     templates: (d.templates ?? []).map((t, ti) => ({
-      title: t.title, description: t.description ?? null, tags: t.tags ?? [],
+      title: t.title, tags: t.tags ?? [],
       items: convertItems(t.items, false, `templates[${ti}].items`, 1, issues, counter),
     })),
     runs: (d.runs ?? []).map((r, ri) => ({
@@ -110,15 +110,14 @@ const empty = (): ImportPlan => ({ tags: [], templates: [], runs: [] });
 
 // ---------- CSV ----------
 const fold = (s: string) => s.toLowerCase().replace(/[\s_\-.]/g, "").replace(/ä/g, "a").replace(/ö/g, "o").replace(/ü/g, "u").replace(/ß/g, "ss");
-const ALIASES: Record<"template" | "level" | "title" | "description", string[]> = {
+const ALIASES: Record<"template" | "level" | "title", string[]> = {
   template: ["vorlage", "template", "checkliste", "checklist", "liste", "list", "taskchecklist", "checklistname", "vorlagenname"],
   level: ["ebene", "level", "stufe", "tiefe", "depth"],
   title: ["titel", "title", "name", "aufgabe", "task", "punkt", "item", "taskname"],
-  description: ["beschreibung", "description", "desc", "notiz", "notes", "details"],
 };
 
 /**
- * Liest eine CSV-Datei (Komma, Semikolon oder Tab) mit den Spalten Vorlage, Ebene, Titel, Beschreibung.
+ * Liest eine CSV-Datei (Komma, Semikolon oder Tab) mit den Spalten Vorlage, Ebene, Titel.
  * Die Ebene (1 = oberste, 2 = Unterpunkt …) bestimmt zusammen mit der Zeilenreihenfolge die Verschachtelung.
  * Ohne Spalte „Vorlage“ wird `fallbackTitle` als Vorlagenname verwendet (z. B. für den Export einer Mendix-Aufgabenliste).
  */
@@ -134,7 +133,7 @@ export function planFromCsv(content: string, fallbackTitle?: string): { plan: Im
 
   const header = csv.rows[0]!.map(fold);
   const col = (kind: keyof typeof ALIASES) => header.findIndex((h) => ALIASES[kind].includes(h));
-  const idx = { template: col("template"), level: col("level"), title: col("title"), description: col("description") };
+  const idx = { template: col("template"), level: col("level"), title: col("title") };
   if (idx.title < 0) {
     return { plan: empty(), issues: [{ path: "Zeile 1", message: `Spalte „Titel“ fehlt (erlaubt: ${ALIASES.title.slice(0, 4).join(", ")} …). Gefunden: ${csv.rows[0]!.join(", ")}` }], itemCount: 0, warnings };
   }
@@ -153,7 +152,6 @@ export function planFromCsv(content: string, fallbackTitle?: string): { plan: Im
     const cell = (i: number) => (i >= 0 ? unguardFormula((cells[i] ?? "").trim()) : "");
     const templateTitle = idx.template >= 0 ? cell(idx.template) : fallbackTitle!.trim();
     const title = cell(idx.title);
-    const desc = cell(idx.description);
     const levelRaw = cell(idx.level);
     let ok = true;
     const fail = (message: string) => { issues.push({ path: where, message }); ok = false; };
@@ -162,7 +160,6 @@ export function planFromCsv(content: string, fallbackTitle?: string): { plan: Im
     else if (templateTitle.length > 200) fail("Vorlagenname länger als 200 Zeichen");
     if (!title) fail("Titel fehlt");
     else if (title.length > 200) fail("Titel länger als 200 Zeichen");
-    if (desc.length > 5000) fail("Beschreibung länger als 5000 Zeichen");
     let level = 1;
     if (levelRaw !== "") {
       level = Number(levelRaw);
@@ -177,7 +174,7 @@ export function planFromCsv(content: string, fallbackTitle?: string): { plan: Im
       fail(`Ebene springt von ${g.stack.length} auf ${level} (es fehlt ein übergeordneter Punkt in „${templateTitle}“)`);
       return;
     }
-    const item: PItem = { title, description: desc || null, isChecked: false, checkedAt: null, children: [] };
+    const item: PItem = { title, isChecked: false, checkedAt: null, children: [] };
     g.stack.length = level - 1;
     (level === 1 ? g.items : g.stack[level - 2]!.children).push(item);
     g.stack.push(item);
@@ -186,7 +183,7 @@ export function planFromCsv(content: string, fallbackTitle?: string): { plan: Im
 
   if (groups.size === 0 && issues.length === 0) issues.push({ path: "", message: "Keine Datenzeilen gefunden" });
   if (groups.size > LIMITS.templates) issues.push({ path: "", message: `Höchstens ${LIMITS.templates} Vorlagen pro Import` });
-  const plan: ImportPlan = { tags: [], runs: [], templates: [...groups].map(([title, g]) => ({ title, description: null, tags: [], items: g.items })) };
+  const plan: ImportPlan = { tags: [], runs: [], templates: [...groups].map(([title, g]) => ({ title, tags: [], items: g.items })) };
   return { plan, issues, itemCount, warnings };
 }
 
@@ -204,8 +201,7 @@ export function previewOf(db: Db, userId: string, plan: ImportPlan) {
     templates: plan.templates.map((t) => ({ title: t.title, itemCount: countItems(t.items), tags: t.tags, sample: sample(t.items) })),
     runs: plan.runs.map((r) => {
       const all = r.sections.flatMap((s) => s.items);
-      const done = (items: PItem[]): number => items.reduce((n, i) => n + (i.isChecked ? 1 : 0) + done(i.children), 0);
-      return { title: r.title, status: r.status, sections: r.sections.map((s) => s.title), progress: { done: done(all), total: countItems(all) } };
+      return { title: r.title, status: r.status, sections: r.sections.map((s) => s.title), progress: { done: all.filter((i) => i.isChecked).length, total: all.length } };
     }),
     tags: { new: names.filter(([k]) => !existing.has(k)).map(([, n]) => n), existing: names.filter(([k]) => existing.has(k)).map(([k]) => existing.get(k)!) },
   };
@@ -239,16 +235,16 @@ export function applyImport(db: Db, userId: string, plan: ImportPlan): ImportRes
         items += 1;
         const id = crypto.randomUUID();
         if (isRun) {
-          tx.insert(schema.runItems).values({ id, sectionId: ctx.sectionId!, parentItemId: parent, title: it.title, description: it.description, position, isChecked: it.isChecked, checkedAt: it.checkedAt }).run();
+          tx.insert(schema.runItems).values({ id, sectionId: ctx.sectionId!, parentItemId: parent, title: it.title, position, isChecked: it.isChecked, checkedAt: it.checkedAt }).run();
         } else {
-          tx.insert(schema.templateItems).values({ id, templateId: ctx.templateId!, parentItemId: parent, title: it.title, description: it.description, position }).run();
+          tx.insert(schema.templateItems).values({ id, templateId: ctx.templateId!, parentItemId: parent, title: it.title, position }).run();
         }
         insertItems(it.children, id, ctx, isRun);
       });
     };
 
     for (const t of plan.templates) {
-      const [row] = tx.insert(schema.templates).values({ ownerId: userId, title: t.title, description: t.description }).returning().all();
+      const [row] = tx.insert(schema.templates).values({ ownerId: userId, title: t.title }).returning().all();
       insertItems(t.items, null, { templateId: row!.id }, false);
       for (const key of new Set(t.tags.map((n) => n.toLowerCase()))) {
         const tagId = ensureTag(t.tags.find((n) => n.toLowerCase() === key)!);
@@ -263,6 +259,7 @@ export function applyImport(db: Db, userId: string, plan: ImportPlan): ImportRes
         const [section] = tx.insert(schema.runSections).values({ runId: run!.id, title: s.title, position }).returning().all();
         insertItems(s.items, null, { sectionId: section!.id }, true);
       });
+      normalizeChecks(tx, run!.id); // Überpunkte sind erledigt, wenn alle Unterpunkte es sind
     }
     const referenced = new Set([...plan.tags.map((t) => t.name.toLowerCase()), ...plan.templates.flatMap((t) => t.tags.map((n) => n.toLowerCase()))]);
     const tagsCreated = [...referenced].filter((k) => !existedBefore.has(k)).length;

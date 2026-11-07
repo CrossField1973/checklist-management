@@ -20,7 +20,6 @@ import { INTERNAL_CALL_HEADER } from "./plugins/auth.js";
 
 const id = (what: string) => z.string().uuid().describe(`ID (UUID) ${what}`);
 const title = z.string().trim().min(1).max(200);
-const description = z.string().max(5000).nullable();
 const position = z.number().int().min(0).describe("Index unter den Geschwistern (0 = ganz oben, sehr große Zahl = ans Ende)");
 
 type Json = Record<string, unknown>;
@@ -41,7 +40,7 @@ interface Tool {
 const clean = (o: Json): Json => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 
 // ---------- Schlanke Antworten ----------
-type TplNode = { id: string; title: string; description: string | null; position: number; children: TplNode[] };
+type TplNode = { id: string; title: string; position: number; children: TplNode[] };
 type RunNode = Omit<TplNode, "children"> & { isChecked: boolean; checkedAt?: number | null; children: RunNode[] };
 const flat = <N extends { id: string; children: N[] }>(nodes: N[], parentId: string | null = null): { node: N; parentId: string | null }[] =>
   nodes.flatMap((n) => [{ node: n, parentId }, ...flat(n.children, n.id)]);
@@ -51,25 +50,32 @@ const templateItem = (items: TplNode[], itemId: string) => {
   const hit = flat(items).find((x) => x.node.id === itemId);
   return hit ? { ...shallow(hit.node), parentItemId: hit.parentId } : null;
 };
-const templateInfo = (d: any) => ({ template: { id: d.template.id, title: d.template.title, description: d.template.description, tags: d.template.tags, itemCount: d.template.itemCount } });
+const templateInfo = (d: any) => ({ template: { id: d.template.id, title: d.template.title, tags: d.template.tags, itemCount: d.template.itemCount } });
 const runInfo = (d: any) => ({
   run: { id: d.run.id, title: d.run.title, status: d.run.status, progress: d.run.progress },
-  sections: d.run.sections.map((s: any) => ({ id: s.id, title: s.title, position: s.position, progress: s.progress })),
+  items: d.run.sections.flatMap((s: any) => s.items).map((i: any) => ({ id: i.id, title: i.title, isChecked: i.isChecked, childProgress: i.childProgress })),
 });
 const runItem = (d: any, itemId: string) => {
   for (const s of d.run.sections) {
     const hit = flat<RunNode>(s.items).find((x) => x.node.id === itemId);
-    if (hit) return { ...shallow(hit.node), sectionId: s.id, parentItemId: hit.parentId };
+    if (hit) return { ...shallow(hit.node), parentItemId: hit.parentId };
   }
   return null;
 };
 const runItemInfo = (d: any, itemId: string) => ({ item: runItem(d, itemId), progress: d.run.progress });
 
 // Punktebaum für Massenaufrufe: bis zu 5 Ebenen in einem Aufruf (tiefere per add_*_item nachtragen)
-const itemLeaf = z.object({ title, description: description.optional() });
-const itemLevel = <C extends z.ZodTypeAny>(child: C) => z.object({ title, description: description.optional(), children: z.array(child).max(500).optional().describe("Unterpunkte") });
+const itemLeaf = z.object({ title });
+const itemLevel = <C extends z.ZodTypeAny>(child: C) => z.object({ title, children: z.array(child).max(500).optional().describe("Unterpunkte") });
 const itemTree = z.array(itemLevel(itemLevel(itemLevel(itemLevel(itemLeaf))))).max(500)
   .describe("Punkte mit optionalen `children` (Unterpunkten), bis zu 5 Ebenen; die Reihenfolge im Array ist die Reihenfolge der Punkte");
+
+// Punktebaum einer Vorlage: zusätzlich Verweise auf andere Vorlagen (`refTemplateId`, dann ohne title/children)
+const refId = id("einer anderen eigenen Vorlage, die an dieser Stelle eingefügt wird (ihre Punkte erscheinen als Unterpunkte; dann kein title/children)").optional();
+const tplLeaf = z.object({ title: title.optional(), refTemplateId: refId });
+const tplLevel = <C extends z.ZodTypeAny>(child: C) => z.object({ title: title.optional(), refTemplateId: refId, children: z.array(child).max(500).optional().describe("Unterpunkte") });
+const templateTree = z.array(tplLevel(tplLevel(tplLevel(tplLevel(tplLeaf))))).max(500)
+  .describe("Punkte mit optionalen `children`, bis zu 5 Ebenen. Ein Punkt kann stattdessen mit `refTemplateId` auf eine andere eigene Vorlage verweisen (Vorlage in Vorlage).");
 
 const TOOLS: Tool[] = [
   // ---------- Lesen (F-64) ----------
@@ -93,7 +99,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "list_runs", title: "Durchführungen auflisten", write: false,
-    description: "Listet Durchführungen mit Fortschritt, Abschnittstiteln und Kennzeichnung, ob sie geteilt sind. Standard: aktive; mit `status: archived` die archivierten.",
+    description: "Listet Durchführungen mit Fortschritt (oberste Ebene), den Titeln der obersten Punkte und Kennzeichnung, ob sie geteilt sind. Standard: aktive; mit `status: archived` die archivierten.",
     shape: {
       status: z.enum(["active", "archived"]).optional(),
       search: z.string().max(200).optional().describe("Teil des Titels"),
@@ -104,7 +110,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: "get_run", title: "Durchführung lesen", write: false,
-    description: "Liefert eine Durchführung mit Abschnitten, verschachteltem Punktebaum (inkl. Abhak-Status), Fortschritt und IDs.",
+    description: "Liefert eine Durchführung mit verschachteltem Punktebaum (inkl. Abhak-Status; `sections` enthält intern genau einen Eintrag mit allen Punkten), Fortschritt und IDs.",
     shape: { runId: id("der Durchführung") },
     build: (a) => ({ method: "GET", url: `/api/v1/runs/${a.runId}` }),
   },
@@ -119,28 +125,28 @@ const TOOLS: Tool[] = [
   {
     name: "create_template", title: "Vorlage anlegen", write: true,
     description: "Legt eine neue Vorlage an, auf Wunsch gleich mit dem ganzen Punktebaum (`items`) und Tags. Spart viele Einzelaufrufe; einzelne Punkte später mit `add_template_item`. Antwort: ID und Kopfdaten (Punkte stehen in `get_template`).",
-    shape: { title, description: description.optional(), tagIds: z.array(id("eines Tags")).max(50).optional(), items: itemTree.optional() },
+    shape: { title, tagIds: z.array(id("eines Tags")).max(50).optional(), items: templateTree.optional() },
     build: (a) => ({ method: "POST", url: "/api/v1/templates", body: clean(a) }),
     slim: templateInfo,
   },
   {
     name: "update_template", title: "Vorlage ändern", write: true,
-    description: "Ändert Titel, Beschreibung und/oder Tags einer Vorlage. Nur übergebene Felder werden geändert; `tagIds` ersetzt die komplette Tag-Liste. ACHTUNG: `items` ersetzt ALLE bisherigen Punkte der Vorlage durch den übergebenen Baum (Punkt-IDs ändern sich); ohne `items` bleiben die Punkte unberührt.",
-    shape: { templateId: id("der Vorlage"), title: title.optional(), description: description.optional(), tagIds: z.array(id("eines Tags")).max(50).optional(), items: itemTree.optional() },
+    description: "Ändert Titel und/oder Tags einer Vorlage. Nur übergebene Felder werden geändert; `tagIds` ersetzt die komplette Tag-Liste. ACHTUNG: `items` ersetzt ALLE bisherigen Punkte der Vorlage durch den übergebenen Baum (Punkt-IDs ändern sich); ohne `items` bleiben die Punkte unberührt.",
+    shape: { templateId: id("der Vorlage"), title: title.optional(), tagIds: z.array(id("eines Tags")).max(50).optional(), items: templateTree.optional() },
     build: ({ templateId, ...rest }) => ({ method: "PUT", url: `/api/v1/templates/${templateId}`, body: clean(rest) }),
     slim: templateInfo,
   },
   {
     name: "add_template_item", title: "Punkt zu Vorlage hinzufügen", write: true,
     description: "Fügt einen Punkt zu einer Vorlage hinzu. Mit `parentItemId` entsteht ein Unterpunkt (beliebig tief). Ohne `position` wird am Ende eingefügt.",
-    shape: { templateId: id("der Vorlage"), title, description: description.optional(), parentItemId: id("des Elternpunkts").nullable().optional(), position: position.optional() },
+    shape: { templateId: id("der Vorlage"), title, parentItemId: id("des Elternpunkts").nullable().optional(), position: position.optional() },
     build: ({ templateId, ...rest }) => ({ method: "POST", url: `/api/v1/templates/${templateId}/items`, body: clean(rest) }),
     slim: (d) => ({ itemId: d.itemId, item: templateItem(d.items, d.itemId), itemCount: tplCount(d.items) }),
   },
   {
     name: "update_template_item", title: "Punkt einer Vorlage ändern", write: true,
-    description: "Ändert Titel und/oder Beschreibung eines Vorlagenpunkts.",
-    shape: { itemId: id("des Vorlagenpunkts"), title: title.optional(), description: description.optional() },
+    description: "Ändert den Titel eines Vorlagenpunkts.",
+    shape: { itemId: id("des Vorlagenpunkts"), title: title.optional() },
     build: ({ itemId, ...rest }) => ({ method: "PUT", url: `/api/v1/template-items/${itemId}`, body: clean(rest) }),
     slim: (d, a) => ({ item: templateItem(d.items, a.itemId), itemCount: tplCount(d.items) }),
   },
@@ -153,23 +159,16 @@ const TOOLS: Tool[] = [
   },
   {
     name: "create_run", title: "Durchführung anlegen", write: true,
-    description: "Startet eine Durchführung. Jede Vorlage in `templateIds` wird als eigener Abschnitt kopiert (in der angegebenen Reihenfolge; dieselbe Vorlage darf mehrfach vorkommen). Ohne `templateIds` entsteht eine leere Durchführung.",
+    description: "Startet eine Durchführung. Jede Vorlage in `templateIds` wird als Überpunkt kopiert, ihre Punkte stehen darunter (in der angegebenen Reihenfolge; dieselbe Vorlage darf mehrfach vorkommen; eingefügte Vorlagen werden mit aufgelöst). Ohne `templateIds` entsteht eine leere Durchführung.",
     shape: { title, templateIds: z.array(id("einer Vorlage")).max(100).optional() },
     build: (a) => ({ method: "POST", url: "/api/v1/runs", body: clean(a) }),
     slim: runInfo,
   },
   {
     name: "add_templates_to_run", title: "Vorlagen zu Durchführung hinzufügen", write: true,
-    description: "Hängt weitere Vorlagen als neue Abschnitte an eine aktive Durchführung an (Kopie, spätere Änderungen an der Vorlage wirken nicht zurück).",
+    description: "Hängt weitere Vorlagen als neue Überpunkte (mit ihren Punkten darunter) an eine aktive Durchführung an (Kopie, spätere Änderungen an der Vorlage wirken nicht zurück).",
     shape: { runId: id("der Durchführung"), templateIds: z.array(id("einer Vorlage")).min(1).max(100) },
-    build: ({ runId, templateIds }) => ({ method: "POST", url: `/api/v1/runs/${runId}/sections`, body: { templateIds } }),
-    slim: runInfo,
-  },
-  {
-    name: "add_run_section", title: "Eigenen Abschnitt anlegen", write: true,
-    description: "Legt in einer aktiven Durchführung einen eigenen, leeren Abschnitt an (für selbst geschriebene Punkte, die in keiner Vorlage stehen).",
-    shape: { runId: id("der Durchführung"), title },
-    build: ({ runId, title: t }) => ({ method: "POST", url: `/api/v1/runs/${runId}/sections`, body: { title: t } }),
+    build: ({ runId, templateIds }) => ({ method: "POST", url: `/api/v1/runs/${runId}/templates`, body: { templateIds } }),
     slim: runInfo,
   },
   {
@@ -180,44 +179,30 @@ const TOOLS: Tool[] = [
     slim: runInfo,
   },
   {
-    name: "update_run_section", title: "Abschnitt umbenennen", write: true,
-    description: "Benennt einen Abschnitt einer aktiven Durchführung um (die Vorlage bleibt unverändert).",
-    shape: { sectionId: id("des Abschnitts"), title },
-    build: ({ sectionId, title: t }) => ({ method: "PUT", url: `/api/v1/run-sections/${sectionId}`, body: { title: t } }),
-    slim: runInfo,
-  },
-  {
-    name: "move_run_section", title: "Abschnitt umsortieren", write: true,
-    description: "Verschiebt einen Abschnitt innerhalb der Durchführung an eine neue Position (0 = ganz oben). Die Antwort nennt die neue Reihenfolge.",
-    shape: { sectionId: id("des Abschnitts"), position },
-    build: ({ sectionId, position: pos }) => ({ method: "POST", url: `/api/v1/run-sections/${sectionId}/move`, body: { position: pos } }),
-    slim: runInfo,
-  },
-  {
     name: "add_run_item", title: "Punkt zu Durchführung hinzufügen", write: true,
-    description: "Fügt einen eigenen Punkt in einen Abschnitt einer aktiven Durchführung ein (nur in dieser Durchführung; die Vorlage bleibt unverändert). Mit `parentItemId` entsteht ein Unterpunkt im selben Abschnitt.",
-    shape: { sectionId: id("des Abschnitts"), title, description: description.optional(), parentItemId: id("des Elternpunkts").nullable().optional(), position: position.optional() },
-    build: ({ sectionId, ...rest }) => ({ method: "POST", url: `/api/v1/run-sections/${sectionId}/items`, body: clean(rest) }),
+    description: "Fügt einen eigenen Punkt in eine aktive Durchführung ein (nur dort; die Vorlage bleibt unverändert). Ohne `parentItemId` entsteht ein Punkt auf oberster Ebene, mit `parentItemId` ein Unterpunkt.",
+    shape: { runId: id("der Durchführung"), title, parentItemId: id("des Elternpunkts").nullable().optional(), position: position.optional() },
+    build: ({ runId, ...rest }) => ({ method: "POST", url: `/api/v1/runs/${runId}/items`, body: clean(rest) }),
     slim: (d) => ({ itemId: d.itemId, ...runItemInfo(d, d.itemId) }),
   },
   {
     name: "add_run_items", title: "Mehrere Punkte zu Durchführung hinzufügen", write: true,
-    description: "Fügt einen ganzen Punktebaum (mit Unterpunkten) ans Ende eines Abschnitts einer aktiven Durchführung an – ein Aufruf statt vieler `add_run_item`. Mit `parentItemId` hängt der Baum unter einen vorhandenen Punkt. Antwort: IDs der obersten neuen Punkte und der Fortschritt.",
-    shape: { sectionId: id("des Abschnitts"), parentItemId: id("des Elternpunkts").nullable().optional(), items: itemTree.min(1) },
-    build: ({ sectionId, ...rest }) => ({ method: "POST", url: `/api/v1/run-sections/${sectionId}/items`, body: clean(rest) }),
+    description: "Fügt einen ganzen Punktebaum (mit Unterpunkten) ans Ende einer aktiven Durchführung an – ein Aufruf statt vieler `add_run_item`. Mit `parentItemId` hängt der Baum unter einen vorhandenen Punkt. Antwort: IDs der obersten neuen Punkte und der Fortschritt.",
+    shape: { runId: id("der Durchführung"), parentItemId: id("des Elternpunkts").nullable().optional(), items: itemTree.min(1) },
+    build: ({ runId, ...rest }) => ({ method: "POST", url: `/api/v1/runs/${runId}/items`, body: clean(rest) }),
     slim: (d) => ({ itemIds: d.itemIds, progress: d.run.progress }),
   },
   {
     name: "update_run_item", title: "Punkt abhaken oder ändern", write: true,
-    description: "Hakt einen Durchführungspunkt ab (`isChecked: true`) oder nimmt das zurück (`false`) und/oder ändert Titel/Beschreibung. Nur bei aktiven Durchführungen.",
-    shape: { itemId: id("des Durchführungspunkts"), isChecked: z.boolean().optional(), title: title.optional(), description: description.optional() },
+    description: "Hakt einen Durchführungspunkt ab (`isChecked: true`) oder nimmt das zurück (`false`) und/oder ändert den Titel. Abhaken wirkt auf alle Unterpunkte; sind alle Unterpunkte erledigt, gilt der Überpunkt automatisch als erledigt (und umgekehrt). Der Fortschritt zählt nur die jeweils direkte Ebene. Nur bei aktiven Durchführungen.",
+    shape: { itemId: id("des Durchführungspunkts"), isChecked: z.boolean().optional(), title: title.optional() },
     build: ({ itemId, ...rest }) => ({ method: "PUT", url: `/api/v1/run-items/${itemId}`, body: clean(rest) }),
     slim: (d, a) => runItemInfo(d, a.itemId),
   },
   {
     name: "move_run_item", title: "Durchführungspunkt verschieben", write: true,
-    description: "Verschiebt einen Durchführungspunkt samt Unterpunkten, auch in einen anderen Abschnitt derselben Durchführung (`sectionId`). `parentItemId: null` = oberste Ebene.",
-    shape: { itemId: id("des Durchführungspunkts"), sectionId: id("des Zielabschnitts").optional(), parentItemId: id("des neuen Elternpunkts").nullable(), position },
+    description: "Verschiebt einen Durchführungspunkt samt Unterpunkten. `parentItemId: null` = oberste Ebene.",
+    shape: { itemId: id("des Durchführungspunkts"), parentItemId: id("des neuen Elternpunkts").nullable(), position },
     build: ({ itemId, ...rest }) => ({ method: "POST", url: `/api/v1/run-items/${itemId}/move`, body: clean(rest) }),
     slim: (d, a) => runItemInfo(d, a.itemId),
   },
@@ -253,7 +238,7 @@ const HINTS: Record<string, string> = {
   unknown_tag: "Mindestens ein Tag existiert nicht.",
   too_many_items: "Zu viele Punkte in einem Aufruf (Höchstwert 5000).",
   parent_not_found: "Elternpunkt nicht gefunden (er muss in derselben Vorlage bzw. im selben Abschnitt liegen).",
-  section_not_found: "Abschnitt nicht gefunden.",
+  ref_cycle: "Eine Vorlage kann sich nicht (auch nicht über andere Vorlagen) selbst enthalten.",
   tag_name_taken: "Ein Tag mit diesem Namen existiert bereits.",
 };
 
@@ -274,8 +259,8 @@ export async function mcpRoutes(app: FastifyInstance, { config }: { config: Pick
       { name: "checklisten-management", version: "1.0.0" },
       {
         instructions: [
-          "Verwaltet Checklisten: Vorlagen (wiederverwendbare Punktelisten mit Unterpunkten und Tags) und Durchführungen (aus einer oder mehreren Vorlagen kopierte Abschnitte, deren Punkte abgehakt werden).",
-          "Für Änderungen zuerst mit get_template/get_run lesen, um die IDs der Punkte und Abschnitte zu erhalten.",
+          "Verwaltet Checklisten: Vorlagen (wiederverwendbare Punktelisten mit Unterpunkten und Tags) und Durchführungen (aus einer oder mehreren Vorlagen kopierte Überpunkte mit ihren Punkten darunter, die abgehakt werden; Vorlagen können andere Vorlagen enthalten).",
+          "Für Änderungen zuerst mit get_template/get_run lesen, um die IDs der Punkte zu erhalten.",
           canWrite ? "Schreibende Werkzeuge antworten knapp (IDs, Fortschritt); den vollständigen Stand liefern get_template/get_run. Für viele Punkte auf einmal create_template/update_template (items) bzw. add_run_items nutzen. Löschen von Vorlagen, Durchführungen und Punkten sowie Archivieren und Teilen sind über MCP nicht möglich; Tags dürfen gelöscht werden." : "Dieser Token hat nur Leserechte: Es stehen ausschließlich lesende Werkzeuge zur Verfügung.",
         ].join("\n"),
       },

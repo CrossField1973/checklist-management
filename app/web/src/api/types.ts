@@ -60,7 +60,7 @@ export interface ImportResult { templates: number; runs: number; items: number; 
 export interface Tag { id: string; name: string; color: string; /** automatisch gewählte Schriftfarbe (schwarz/weiß) mit AA-Kontrast */ textColor: string; templateCount?: number }
 
 export interface TemplateSummary {
-  id: string; title: string; description: string | null; tags: Tag[]; itemCount: number; createdAt: number; updatedAt: number;
+  id: string; title: string; tags: Tag[]; itemCount: number; usedInCount?: number; createdAt: number; updatedAt: number;
 }
 export interface TemplateDetail extends TemplateSummary { items: import("../lib/tree").ItemNode[] }
 
@@ -68,10 +68,10 @@ export interface Progress { done: number; total: number }
 export interface ShareBadge { access: "anyone" | "password"; permission: "view" | "edit" }
 export interface RunSummary {
   id: string; title: string; status: "active" | "archived"; createdAt: number; updatedAt: number; archivedAt: number | null;
-  sectionTitles: string[]; progress: Progress; share: ShareBadge | null;
+  itemTitles: string[]; progress: Progress; share: ShareBadge | null;
 }
 export interface RunItemNode {
-  id: string; title: string; description: string | null; position: number; isChecked: boolean; checkedAt: number | null;
+  id: string; title: string; position: number; isChecked: boolean; checkedAt: number | null;
   childProgress: Progress; children: RunItemNode[];
 }
 export interface RunSection { id: string; title: string; position: number; sourceTemplateId: string | null; progress: Progress; items: RunItemNode[] }

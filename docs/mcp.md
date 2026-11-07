@@ -66,28 +66,25 @@ claude mcp add --transport http checklisten https://checklisten.example.org/mcp 
 | `list_templates` | Vorlagen auflisten (Suche, Tag-Filter, Sortierung, Blättern) |
 | `get_template` | Vorlage mit vollständigem Punktebaum und IDs |
 | `list_runs` | Durchführungen auflisten (aktiv oder archiviert; Fortschritt, geteilt ja/nein) |
-| `get_run` | Durchführung mit Abschnitten, Punktebaum, Abhak-Status, Fortschritt |
+| `get_run` | Durchführung mit Punktebaum (`sections` enthält intern genau einen Eintrag), Abhak-Status, Fortschritt |
 | `list_tags` | Tags mit Farbe und Anzahl verwendeter Vorlagen |
 
 ### Erstellen und Bearbeiten (nur Token mit Recht *lesen+schreiben*)
 
 | Werkzeug | Zweck |
 |---|---|
-| `create_template` | Vorlage anlegen (Titel, Beschreibung, Tags) – auf Wunsch gleich mit dem **ganzen Punktebaum** (`items`, bis 5 Ebenen) |
-| `update_template` | Titel, Beschreibung, Tags ändern; mit `items` wird der **gesamte Punktebaum ersetzt** (Punkt-IDs ändern sich) |
+| `create_template` | Vorlage anlegen (Titel, Tags) – auf Wunsch gleich mit dem **ganzen Punktebaum** (`items`, bis 5 Ebenen) |
+| `update_template` | Titel, Tags ändern; mit `items` wird der **gesamte Punktebaum ersetzt** (Punkt-IDs ändern sich) |
 | `add_template_item` | Punkt oder Unterpunkt zu einer Vorlage hinzufügen |
-| `update_template_item` | Titel/Beschreibung eines Vorlagenpunkts ändern |
+| `update_template_item` | Titel eines Vorlagenpunkts ändern |
 | `move_template_item` | Vorlagenpunkt verschieben (auch zwischen Ebenen) |
 | `create_run` | Durchführung aus keiner, einer oder mehreren Vorlagen anlegen |
-| `add_templates_to_run` | Weitere Vorlagen an eine aktive Durchführung anhängen |
-| `add_run_section` | Eigenen leeren Abschnitt in einer aktiven Durchführung anlegen |
-| `add_run_item` | Eigenen Punkt/Unterpunkt in einen Abschnitt einfügen |
-| `add_run_items` | Mehrere Punkte samt Unterpunkten in einem Aufruf an einen Abschnitt (oder unter einen Punkt) hängen |
+| `add_templates_to_run` | Weitere Vorlagen als Überpunkte an eine aktive Durchführung anhängen |
+| `add_run_item` | Eigenen Punkt/Unterpunkt in eine Durchführung einfügen |
+| `add_run_items` | Mehrere Punkte samt Unterpunkten in einem Aufruf an eine Durchführung (oder unter einen Punkt) hängen |
 | `update_run` | Durchführung umbenennen |
-| `update_run_section` | Abschnitt umbenennen |
-| `move_run_section` | Abschnitt innerhalb der Durchführung umsortieren |
-| `update_run_item` | Punkt **abhaken** oder zurücknehmen, Titel/Beschreibung ändern |
-| `move_run_item` | Durchführungspunkt verschieben (auch in anderen Abschnitt) |
+| `update_run_item` | Punkt **abhaken** oder zurücknehmen, Titel ändern |
+| `move_run_item` | Durchführungspunkt verschieben (auch auf andere Ebenen) |
 | `create_tag` | Tag anlegen (Farbe wird automatisch gewählt) |
 | `update_tag` | Tag umbenennen und/oder Farbe ändern |
 | `delete_tag` | Tag löschen (nur die Zuordnung zu Vorlagen verschwindet; als *destruktiv* gekennzeichnet) |
@@ -98,7 +95,9 @@ claude mcp add --transport http checklisten https://checklisten.example.org/mcp 
 
 ## 4. Regeln und Verhalten
 
-- **Schlanke Antworten:** Schreibwerkzeuge liefern nur das Geänderte – bei Punkten den Punkt (mit `parentItemId`, bei Durchführungspunkten `sectionId`), bei Durchführungen Kopfdaten und Fortschritt je Abschnitt, bei Vorlagen Kopfdaten und Punktezahl. Den vollständigen Stand liefern `get_template` und `get_run`.
+- **Überpunkte statt Abschnitte:** Jede Vorlage wird in einer Durchführung ein Überpunkt mit ihren Punkten darunter. Abhaken wirkt auf alle Unterpunkte; sind alle Unterpunkte erledigt, gilt der Überpunkt als erledigt (und umgekehrt). Der Fortschritt zählt nur die direkte Ebene.
+- **Vorlage in Vorlage:** In `create_template`/`update_template` kann ein Punkt statt `title` ein `refTemplateId` haben (Verweis auf eine andere eigene Vorlage); Kreise werden abgelehnt (`ref_cycle`). `get_template` liefert dazu `ref` mit Name und Punktezahl.
+- **Schlanke Antworten:** Schreibwerkzeuge liefern nur das Geänderte – bei Punkten den Punkt (mit `parentItemId`), bei Durchführungen Kopfdaten, Fortschritt und die Überpunkte, bei Vorlagen Kopfdaten und Punktezahl. Den vollständigen Stand liefern `get_template` und `get_run`.
 
 - **Gleiche Regeln wie in der Oberfläche:** Jedes Werkzeug ruft intern die REST-API auf. Validierung, Mandantentrennung, Verschachtelungstiefe (max. 50), Zyklenprüfung und der Schreibschutz archivierter Durchführungen gelten unverändert.
 - **Fehler** erhalten einen Fehlercode und einen Hinweis, z. B. `Fehler 409 (run_not_active). Die Durchführung ist archiviert und damit schreibgeschützt.` – der Assistent kann darauf reagieren.

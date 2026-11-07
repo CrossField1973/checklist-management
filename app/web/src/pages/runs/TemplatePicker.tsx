@@ -7,7 +7,7 @@ import type { TemplateSummary } from "../../api/types";
 import { Spinner } from "../../components/ui";
 
 /** Mehrfachauswahl von Vorlagen; die Klickreihenfolge bestimmt die Reihenfolge der Abschnitte (F-21, F-22). */
-export function TemplatePicker({ enabled, selected, onChange }: { enabled: boolean; selected: string[]; onChange: (ids: string[], titles: string[]) => void }) {
+export function TemplatePicker({ enabled, selected, onChange, exclude = [] }: { enabled: boolean; selected: string[]; onChange: (ids: string[], titles: string[]) => void; exclude?: string[] }) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState("");
   const templates = useQuery({
@@ -19,7 +19,7 @@ export function TemplatePicker({ enabled, selected, onChange }: { enabled: boole
     const next = selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id];
     onChange(next, next.map(titleOf));
   };
-  const list = (templates.data?.templates ?? []).filter((x) => x.title.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase()));
+  const list = (templates.data?.templates ?? []).filter((x) => !exclude.includes(x.id)).filter((x) => x.title.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase()));
 
   return (
     <fieldset className="mt-4 min-w-0 border-0 p-0">

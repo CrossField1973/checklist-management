@@ -5,6 +5,7 @@ import {
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useRef, useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
   descendantIds, findNode, flatten, getProjection, indentTarget, isSamePlace, moveDownTarget, moveUpTarget, outdentTarget,
@@ -42,14 +43,16 @@ function QuickAdd({ label, placeholder, onAdd, onClose, autoFocus }: { label: st
   }
 
   return (
-    <form onSubmit={submit} className="flex gap-2" noValidate>
-      <input
-        ref={input} className="input min-w-0 flex-1" aria-label={label} placeholder={placeholder} value={value} maxLength={200} autoFocus={autoFocus}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Escape" && onClose) { e.preventDefault(); onClose(); } }}
-      />
-      <button type="submit" className="btn btn-primary" disabled={busy || !value.trim()}>{t("common.add")}</button>
-      {onClose && <button type="button" className="btn" onClick={onClose}>{t("common.cancel")}</button>}
+    <form onSubmit={submit} className="grid gap-2" noValidate>
+      <div className="flex gap-2">
+        <input
+          ref={input} className="input min-w-0 flex-1" aria-label={label} placeholder={placeholder} value={value} maxLength={200} autoFocus={autoFocus}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Escape" && onClose) { e.preventDefault(); onClose(); } }}
+        />
+        <button type="submit" className="btn btn-primary" disabled={busy || !value.trim()}>{t("common.add")}</button>
+        {onClose && <button type="button" className="btn" onClick={onClose}>{t("common.cancel")}</button>}
+      </div>
     </form>
   );
 }
@@ -95,16 +98,27 @@ function Row({ item, depth, tree, isCollapsed, isDragging, addingHere, onToggle,
             <button type="button" className={iconBtn} aria-expanded={!isCollapsed} aria-label={t(isCollapsed ? "items.expand" : "items.collapse", { title: node.title })} onClick={onToggle}>{isCollapsed ? "▸" : "▾"}</button>
           ) : <span className="inline-block w-9" aria-hidden="true" />}
           <div className="min-w-0 flex-1">
-            <p className="m-0 break-words font-medium">{node.title}{hasChildren && isCollapsed && <span className="badge ml-2">{t("items.hidden", { count: node.children.length })}</span>}</p>
-            {node.description && <p className="hint m-0 whitespace-pre-wrap break-words">{node.description}</p>}
+            {node.ref ? (
+              <p className="m-0 break-words font-medium">
+                <span className="badge mr-2">{t("items.templateBadge")}</span>
+                {node.ref.missing ? <span className="text-danger">{node.title || t("items.missingTemplate")} – {t("items.missingTemplate")}</span> : (
+                  <>
+                    <Link className="link" to={`/templates/${node.ref.templateId}`}>{node.ref.title}</Link>
+                    {node.ref.itemCount > 0 && <span className="hint ml-2">{t("items.refCount", { count: node.ref.itemCount })}</span>}
+                  </>
+                )}
+              </p>
+            ) : (
+              <p className="m-0 break-words font-medium">{node.title}{hasChildren && isCollapsed && <span className="badge ml-2">{t("items.hidden", { count: node.children.length })}</span>}</p>
+            )}
           </div>
           <div role="group" aria-label={t("items.actionsFor", { title: node.title })} className="flex flex-wrap gap-1">
             <button type="button" className={iconBtn} disabled={!up} onClick={() => up && void onMove(node.id, up)} aria-label={t("items.up", { title: node.title })} title={t("items.upShort")}>↑</button>
             <button type="button" className={iconBtn} disabled={!down} onClick={() => down && void onMove(node.id, down)} aria-label={t("items.down", { title: node.title })} title={t("items.downShort")}>↓</button>
             <button type="button" className={iconBtn} disabled={!outdent} onClick={() => outdent && void onMove(node.id, outdent)} aria-label={t("items.outdent", { title: node.title })} title={t("items.outdentShort")}>←</button>
             <button type="button" className={iconBtn} disabled={!indent} onClick={() => indent && void onMove(node.id, indent)} aria-label={t("items.indent", { title: node.title })} title={t("items.indentShort")}>→</button>
-            <button type="button" className={iconBtn} aria-expanded={addingHere} onClick={onToggleAdd} aria-label={t("items.addChild", { title: node.title })} title={t("items.addChildShort")}>＋</button>
-            <button type="button" className={iconBtn} onClick={() => onEdit(node)} aria-label={t("items.edit", { title: node.title })} title={t("common.edit")}>✎</button>
+            {!node.ref && <button type="button" className={iconBtn} aria-expanded={addingHere} onClick={onToggleAdd} aria-label={t("items.addChild", { title: node.title })} title={t("items.addChildShort")}>＋</button>}
+            {!node.ref && <button type="button" className={iconBtn} onClick={() => onEdit(node)} aria-label={t("items.edit", { title: node.title })} title={t("common.edit")}>✎</button>}
             <button type="button" className={`${iconBtn} btn-danger`} onClick={() => onDelete(node)} aria-label={t("items.delete", { title: node.title })} title={t("common.delete")}>🗑</button>
           </div>
         </div>

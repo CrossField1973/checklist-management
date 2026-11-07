@@ -104,14 +104,14 @@ Pfad: `/public/runs/:token` – der Token steht am Ende des Links (`…/s/<token
 | Methode | Pfad | Berechtigung | Zweck |
 |---|---|---|---|
 | GET | `/public/runs/:token` | ansehen | Durchführung lesen: `{ permission, run: { title, updatedAt, progress, sections } }` |
-| PUT | `/public/runs/:token/items/:itemId` | bearbeiten | abhaken `{isChecked}`, Titel/Beschreibung ändern |
+| PUT | `/public/runs/:token/items/:itemId` | bearbeiten | abhaken `{isChecked}`, Titel ändern |
 | POST | `/public/runs/:token/sections/:sectionId/items` | bearbeiten | Punkt hinzufügen |
 | POST | `/public/runs/:token/items/:itemId/move` | bearbeiten | Punkt verschieben/umsortieren |
 | DELETE | `/public/runs/:token/items/:itemId` | bearbeiten | Punkt löschen |
 
 Antworten enthalten jeweils die komplette, aktuelle Ansicht. Mit `run.updatedAt` erkennt ein Client per Polling (z. B. alle 5–10 Sekunden), ob sich etwas geändert hat.
 
-Nicht möglich über den Link: Vorlagen hinzufügen, Durchführung umbenennen/abschließen/archivieren/löschen, Abschnitte ändern, Link ändern.
+Nicht möglich über den Link: Vorlagen hinzufügen, Durchführung umbenennen/abschließen/archivieren/löschen, Link ändern.
 
 | Status | Bedeutung |
 |---|---|

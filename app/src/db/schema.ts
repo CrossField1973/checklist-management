@@ -97,7 +97,6 @@ export const templates = sqliteTable(
     id: id(),
     ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
-    description: text("description"),
     createdAt: createdAt(),
     updatedAt: integer("updated_at").notNull().$defaultFn(() => Date.now()),
     deletedAt: integer("deleted_at"), // Papierkorb
@@ -114,8 +113,9 @@ export const templateItems = sqliteTable(
       onDelete: "cascade",
     }),
     title: text("title").notNull(),
-    description: text("description"),
     position: integer("position").notNull().default(0),
+    /** Verweis auf eine andere Vorlage: deren Punkte erscheinen als Unterpunkte dieses Punkts (Titel = Name der Vorlage). */
+    refTemplateId: text("ref_template_id").references((): AnySQLiteColumn => templates.id, { onDelete: "cascade" }),
   },
   (t) => [index("template_items_tpl").on(t.templateId), index("template_items_parent").on(t.parentItemId)],
 );
@@ -169,7 +169,6 @@ export const runItems = sqliteTable(
       onDelete: "cascade",
     }),
     title: text("title").notNull(),
-    description: text("description"),
     position: integer("position").notNull().default(0),
     isChecked: integer("is_checked", { mode: "boolean" }).notNull().default(false),
     checkedAt: integer("checked_at"),

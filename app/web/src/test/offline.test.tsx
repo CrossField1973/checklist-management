@@ -5,15 +5,15 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/client";
 import type { RunDetail, RunItemNode } from "../api/types";
-import { kvGet } from "../offline/idb";
+import { kvGet, kvSet } from "../offline/idb";
 import { clearOfflineData, restoreCache, startPersisting } from "../offline/persist";
 import { enqueue, flushQueue, getOps, resetQueue } from "../offline/queue";
 import { apiError, mockApi, renderApp } from "./harness";
 
-const item = (id: string, title: string): RunItemNode => ({ id, title, description: null, position: 0, isChecked: false, checkedAt: null, childProgress: { done: 0, total: 0 }, children: [] });
+const item = (id: string, title: string): RunItemNode => ({ id, title, position: 0, isChecked: false, checkedAt: null, childProgress: { done: 0, total: 0 }, children: [] });
 const run = (): RunDetail => ({
   id: "r1", title: "Ausflug", status: "active", createdAt: 1, updatedAt: 1, archivedAt: null, share: null, progress: { done: 0, total: 2 },
-  sections: [{ id: "s1", title: "Tagesausflug", position: 0, sourceTemplateId: null, progress: { done: 0, total: 2 }, items: [item("a", "Rucksack"), item("b", "Route prüfen")] }],
+  sections: [{ id: "s1", title: "Ausflug", position: 0, sourceTemplateId: null, progress: { done: 0, total: 2 }, items: [item("a", "Rucksack"), item("b", "Route prüfen")] }],
 });
 
 let online = true;
@@ -93,7 +93,7 @@ describe("Offline in der Oberfläche", () => {
     const { ui } = renderApp("/runs/r1");
     await screen.findByRole("checkbox", { name: "Rucksack" });
     setOnline(false);
-    await ui.type(screen.getByLabelText("Neuer Punkt in Tagesausflug"), "Sonnenbrille{Enter}");
+    await ui.type(screen.getByLabelText("Neuen Punkt hinzufügen"), "Sonnenbrille{Enter}");
     const box = await screen.findByRole("checkbox", { name: "Sonnenbrille" });
     expect(box).toBeDisabled();
     expect(box.closest("li")).toHaveTextContent("wartet auf Übertragung");
@@ -169,6 +169,19 @@ describe("Lokaler Zwischenspeicher (IndexedDB)", () => {
     await restoreCache(fresh, "u1");
     expect((fresh.getQueryData(["run", "r1"]) as RunDetail).title).toBe("Ausflug");
     expect(fresh.getQueryData(["run-share", "r1"])).toBeUndefined();
+  });
+
+  it("verwirft einen Zwischenspeicher älterer Bauart, statt veraltete Antworten anzuzeigen", async () => {
+    const stop = startPersisting(filled(), "u1");
+    await waitFor(async () => expect(await kvGet("cache")).toBeTruthy(), { timeout: 4000 });
+    stop();
+    const saved = (await kvGet("cache")) as Record<string, unknown>;
+    delete saved.version; // so sah der Speicher vor der Versionierung aus
+    await kvSet("cache", saved);
+    const fresh = new QueryClient();
+    await restoreCache(fresh, "u1");
+    expect(fresh.getQueryData(["run", "r1"])).toBeUndefined();
+    expect(await kvGet("cache")).toBeUndefined();
   });
 
   it("stellt Daten eines anderen Nutzers nie wieder her und löscht sie", async () => {

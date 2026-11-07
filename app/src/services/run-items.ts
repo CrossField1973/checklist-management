@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { schema } from "../db/index.js";
-import { MAX_BULK_ITEMS, MAX_DEPTH, loadItems as loadTemplateItems, type ItemInput } from "./template-items.js";
+import { MAX_BULK_ITEMS, MAX_DEPTH, expandTemplate, type PlainItem } from "./template-items.js";
 
 type RunItem = typeof schema.runItems.$inferSelect;
 type Section = typeof schema.runSections.$inferSelect;
@@ -13,11 +13,10 @@ export interface Progress { done: number; total: number }
 export interface RunItemNode {
   id: string;
   title: string;
-  description: string | null;
   position: number;
   isChecked: boolean;
   checkedAt: number | null;
-  /** Fortschritt aller Unterpunkte (F-24: „x/y“ am Elternpunkt). */
+  /** Fortschritt der direkten Unterpunkte (F-24: „x/y“ am Elternpunkt). */
   childProgress: Progress;
   children: RunItemNode[];
 }
@@ -45,17 +44,17 @@ export function loadRunItems(db: Conn, runId: string): RunItem[] {
   return ids.length ? db.select().from(schema.runItems).where(inArray(schema.runItems.sectionId, ids)).all() : [];
 }
 
-/** Zählt erledigte und alle Punkte (alle Ebenen). */
-export const progressOf = (items: readonly { isChecked: boolean }[]): Progress => ({
-  done: items.filter((i) => i.isChecked).length,
-  total: items.length,
-});
+/** Fortschritt der obersten Ebene (Unterpunkte zählen nicht mit; ein Überpunkt ist erledigt, wenn alle seine Unterpunkte es sind). */
+export const progressOf = (items: readonly { isChecked: boolean; parentItemId: string | null }[]): Progress => {
+  const roots = items.filter((i) => !i.parentItemId);
+  return { done: roots.filter((i) => i.isChecked).length, total: roots.length };
+};
 
 /** Baut je Abschnitt den verschachtelten Punktebaum inklusive Fortschritt. */
 export function buildSections(sections: Section[], items: RunItem[]): SectionNode[] {
   const nodes = new Map<string, RunItemNode>(
     items.map((i) => [i.id, {
-      id: i.id, title: i.title, description: i.description, position: i.position, isChecked: i.isChecked,
+      id: i.id, title: i.title, position: i.position, isChecked: i.isChecked,
       checkedAt: i.checkedAt, childProgress: { done: 0, total: 0 }, children: [],
     }]),
   );
@@ -67,14 +66,8 @@ export function buildSections(sections: Section[], items: RunItem[]): SectionNod
   }
   const finish = (list: RunItemNode[]): Progress => {
     list.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
-    const sum: Progress = { done: 0, total: 0 };
-    for (const n of list) {
-      const sub = finish(n.children);
-      n.childProgress = sub;
-      sum.done += sub.done + (n.isChecked ? 1 : 0);
-      sum.total += sub.total + 1;
-    }
-    return sum;
+    for (const n of list) n.childProgress = finish(n.children);
+    return { done: list.filter((n) => n.isChecked).length, total: list.length };
   };
   return sections.map((s) => {
     const list = roots.get(s.id) ?? [];
@@ -90,48 +83,29 @@ export function runDetail(db: Conn, runId: string) {
   return { sections, progress: sumProgress(sections) };
 }
 
-// ---------- Abschnitte ----------
-const renumberSections = (db: Conn, ids: string[]) =>
-  ids.forEach((id, position) => db.update(schema.runSections).set({ position }).where(eq(schema.runSections.id, id)).run());
-
-/** Kopiert eine Vorlage als neuen Abschnitt ans Ende der Durchführung (F-21, F-22): Momentaufnahme. */
-export function appendSectionFromTemplate(db: Conn, runId: string, template: { id: string; title: string }): Section {
-  const position = loadSections(db, runId).length;
-  const [section] = db.insert(schema.runSections)
-    .values({ runId, sourceTemplateId: template.id, title: template.title, position }).returning().all();
-  const items = loadTemplateItems(db, template.id);
-  const idMap = new Map(items.map((i) => [i.id, crypto.randomUUID()]));
-  const visit = (parentId: string | null) => {
-    for (const i of items.filter((x) => (x.parentItemId ?? null) === parentId)) {
-      db.insert(schema.runItems).values({
-        id: idMap.get(i.id)!, sectionId: section!.id, parentItemId: parentId ? idMap.get(parentId)! : null,
-        title: i.title, description: i.description, position: i.position,
-      }).run();
-      visit(i.id);
-    }
-  };
-  visit(null);
-  return section!;
+// ---------- Interner Abschnitt ----------
+/** Jede Durchführung hat genau einen internen Abschnitt, der alle obersten Punkte enthält (für Nutzer gibt es keine Abschnitte). */
+export function primarySection(db: Conn, run: { id: string; title: string }): Section {
+  const existing = loadSections(db, run.id)[0];
+  return existing ?? db.insert(schema.runSections).values({ runId: run.id, title: run.title, position: 0 }).returning().all()[0]!;
 }
 
-export function appendEmptySection(db: Conn, runId: string, title: string): Section {
-  const position = loadSections(db, runId).length;
-  return db.insert(schema.runSections).values({ runId, title, position }).returning().all()[0]!;
-}
-
-export function deleteSection(db: Db, section: Section) {
-  db.transaction((tx) => {
-    tx.delete(schema.runSections).where(eq(schema.runSections.id, section.id)).run();
-    renumberSections(tx, loadSections(tx, section.runId).map((s) => s.id));
+/**
+ * Fügt eine Vorlage als Überpunkt ans Ende ein (F-21, F-22): Momentaufnahme; die Punkte der Vorlage (inklusive eingefügter
+ * Vorlagen) stehen darunter.
+ */
+export function appendTemplateAsItem(db: Conn, run: { id: string; title: string }, template: { id: string; title: string }) {
+  const section = primarySection(db, run);
+  const position = db.select().from(schema.runItems)
+    .where(and(eq(schema.runItems.sectionId, section.id), isNull(schema.runItems.parentItemId))).all().length;
+  const insert = (nodes: PlainItem[], parentItemId: string | null) => nodes.forEach((n, i) => {
+    const [row] = db.insert(schema.runItems)
+      .values({ sectionId: section.id, parentItemId, title: n.title, position: i }).returning().all();
+    insert(n.children ?? [], row!.id);
   });
-}
-
-export function moveSection(db: Db, section: Section, position: number) {
-  db.transaction((tx) => {
-    const ids = loadSections(tx, section.runId).map((s) => s.id).filter((id) => id !== section.id);
-    ids.splice(Math.min(Math.max(position, 0), ids.length), 0, section.id);
-    renumberSections(tx, ids);
-  });
+  const [root] = db.insert(schema.runItems)
+    .values({ sectionId: section.id, parentItemId: null, title: template.title, position }).returning().all();
+  insert(expandTemplate(db, template.id), root!.id);
 }
 
 // ---------- Punkte ----------
@@ -160,11 +134,36 @@ const subtree = (items: RunItem[], id: string): RunItem[] => {
 const height = (items: RunItem[], id: string): number =>
   1 + Math.max(0, ...items.filter((i) => i.parentItemId === id).map((c) => height(items, c.id)));
 
-export function addRunItem(
-  db: Db, section: Section,
-  input: { title: string; description?: string | null; parentItemId?: string | null; position?: number },
+/**
+ * Gleicht die Erledigt-Markierungen der Überpunkte an: ein Punkt mit Unterpunkten ist erledigt, wenn alle seine Unterpunkte
+ * erledigt sind (von unten nach oben). Punkte ohne Unterpunkte behalten ihren Zustand.
+ */
+export function normalizeChecks(db: Conn, runId: string) {
+  const items = loadRunItems(db, runId);
+  const kids = new Map<string, RunItem[]>();
+  for (const i of items) if (i.parentItemId) kids.set(i.parentItemId, [...(kids.get(i.parentItemId) ?? []), i]);
+  const state = new Map(items.map((i) => [i.id, i.isChecked]));
+  const now = Date.now();
+  const visit = (id: string): boolean => {
+    const children = kids.get(id);
+    if (!children) return state.get(id)!;
+    const all = children.map((c) => visit(c.id)).every(Boolean);
+    if (all !== state.get(id)) {
+      db.update(schema.runItems).set({ isChecked: all, checkedAt: all ? now : null }).where(eq(schema.runItems.id, id)).run();
+      state.set(id, all);
+    }
+    return all;
+  };
+  items.filter((i) => !i.parentItemId).forEach((i) => visit(i.id));
+}
+
+const runIdOf = (db: Conn, sectionId: string) => db.select().from(schema.runSections).where(eq(schema.runSections.id, sectionId)).get()!.runId;
+
+function insertRunItem(
+  tx: Conn, section: Section,
+  input: { title: string; parentItemId?: string | null; position?: number },
 ): RunItem {
-  return db.transaction((tx) => {
+  {
     const items = loadRunItems(tx, section.runId);
     const byId = new Map(items.map((i) => [i.id, i]));
     const parentId = input.parentItemId ?? null;
@@ -174,10 +173,21 @@ export function addRunItem(
     const siblings = siblingIds(tx, section.id, parentId);
     const index = Math.min(Math.max(input.position ?? siblings.length, 0), siblings.length);
     const [item] = tx.insert(schema.runItems)
-      .values({ sectionId: section.id, parentItemId: parentId, title: input.title, description: input.description ?? null, position: index }).returning().all();
+      .values({ sectionId: section.id, parentItemId: parentId, title: input.title, position: index }).returning().all();
     siblings.splice(index, 0, item!.id);
     renumber(tx, siblings);
     return { ...item!, position: index };
+  }
+}
+
+export function addRunItem(
+  db: Db, section: Section,
+  input: { title: string; parentItemId?: string | null; position?: number },
+): RunItem {
+  return db.transaction((tx) => {
+    const item = insertRunItem(tx, section, input);
+    normalizeChecks(tx, section.runId); // ein neuer offener Unterpunkt macht den Überpunkt wieder offen
+    return item;
   });
 }
 
@@ -186,18 +196,20 @@ export function addRunItem(
  * Gibt die IDs der obersten neuen Punkte zurück. Wirft RunItemError (`parent_not_found`, `too_deep`) bzw. bei mehr als
  * MAX_BULK_ITEMS Punkten `too_many_items`.
  */
-export function addRunItemTree(db: Db, section: Section, tree: ItemInput[], parentItemId: string | null = null): string[] {
+export function addRunItemTree(db: Db, section: Section, tree: PlainItem[], parentItemId: string | null = null): string[] {
   let count = 0;
-  const check = (nodes: ItemInput[]) => nodes.forEach((n) => { if (++count > MAX_BULK_ITEMS) throw new RunItemError("too_many_items"); check(n.children ?? []); });
+  const check = (nodes: PlainItem[]) => nodes.forEach((n) => { if (++count > MAX_BULK_ITEMS) throw new RunItemError("too_many_items"); check(n.children ?? []); });
   check(tree);
   return db.transaction((tx) => {
-    const insert = (nodes: ItemInput[], parent: string | null): string[] =>
+    const insert = (nodes: PlainItem[], parent: string | null): string[] =>
       nodes.map((n) => {
-        const item = addRunItem(tx as unknown as Db, section, { title: n.title, description: n.description ?? null, parentItemId: parent });
+        const item = insertRunItem(tx, section, { title: n.title, parentItemId: parent });
         insert(n.children ?? [], item.id);
         return item.id;
       });
-    return insert(tree, parentItemId);
+    const ids = insert(tree, parentItemId);
+    normalizeChecks(tx, section.runId);
+    return ids;
   });
 }
 
@@ -233,6 +245,7 @@ export function moveRunItem(db: Db, item: RunItem, runId: string, targetSectionI
     if (oldSection !== targetSectionId || (oldParent ?? null) !== (newParentId ?? null)) {
       renumber(tx, siblingIds(tx, oldSection, oldParent, item.id));
     }
+    normalizeChecks(tx, runId);
   });
 }
 
@@ -240,19 +253,31 @@ export function deleteRunItem(db: Db, item: RunItem) {
   db.transaction((tx) => {
     tx.delete(schema.runItems).where(eq(schema.runItems.id, item.id)).run();
     renumber(tx, siblingIds(tx, item.sectionId, item.parentItemId));
+    normalizeChecks(tx, runIdOf(tx, item.sectionId));
   });
 }
 
-/** Ändert Titel/Beschreibung und hakt ab bzw. nimmt zurück (F-24); der Zeitstempel ändert sich nur bei echtem Zustandswechsel. */
+/**
+ * Ändert den Titel und hakt ab bzw. nimmt zurück (F-24); der Zeitstempel ändert sich nur bei echtem Zustandswechsel.
+ * Abhaken wirkt auf alle Unterpunkte und, wenn dadurch alle Geschwister erledigt sind, auf die Überpunkte (und umgekehrt).
+ */
 export function updateRunItem(
   db: Db, item: RunItem,
-  patch: { title?: string; description?: string | null; isChecked?: boolean },
+  patch: { title?: string; isChecked?: boolean },
 ) {
-  const checkedChanged = patch.isChecked !== undefined && patch.isChecked !== item.isChecked;
-  db.update(schema.runItems).set({
-    ...(patch.title !== undefined && { title: patch.title }),
-    ...(patch.description !== undefined && { description: patch.description }),
-    ...(patch.isChecked !== undefined && { isChecked: patch.isChecked }),
-    ...(checkedChanged && { checkedAt: patch.isChecked ? Date.now() : null }),
-  }).where(eq(schema.runItems.id, item.id)).run();
+  db.transaction((tx) => {
+    const checkedChanged = patch.isChecked !== undefined && patch.isChecked !== item.isChecked;
+    tx.update(schema.runItems).set({
+      ...(patch.title !== undefined && { title: patch.title }),
+      ...(patch.isChecked !== undefined && { isChecked: patch.isChecked }),
+      ...(checkedChanged && { checkedAt: patch.isChecked ? Date.now() : null }),
+    }).where(eq(schema.runItems.id, item.id)).run();
+    if (patch.isChecked === undefined) return;
+    const runId = runIdOf(tx, item.sectionId);
+    const now = Date.now();
+    for (const d of subtree(loadRunItems(tx, runId), item.id)) {
+      if (d.isChecked !== patch.isChecked) tx.update(schema.runItems).set({ isChecked: patch.isChecked, checkedAt: patch.isChecked ? now : null }).where(eq(schema.runItems.id, d.id)).run();
+    }
+    normalizeChecks(tx, runId);
+  });
 }

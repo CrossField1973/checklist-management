@@ -73,12 +73,12 @@ describe("Vorlagen (F-11, F-12, F-15, F-16)", () => {
     expect((await ctx.app.inject({ method: "GET", url: "/api/v1/templates" })).statusCode).toBe(401);
   });
 
-  it("legt an, liest, ändert Titel, Beschreibung und Tags", async () => {
+  it("legt an, liest, ändert Titel und Tags", async () => {
     const tag = (await anna.post("/api/v1/tags", { name: "Reisen" })).json().tag;
-    const tpl = await makeTemplate(anna, "  Tagesausflug  ", { description: "Für unterwegs" });
+    const tpl = await makeTemplate(anna, "  Tagesausflug  ");
     expect(tpl.title).toBe("Tagesausflug");
-    const res = await anna.put(`/api/v1/templates/${tpl.id}`, { title: "Ausflug", tagIds: [tag.id], description: null });
-    expect(res.json().template).toMatchObject({ title: "Ausflug", description: null, tags: [{ id: tag.id }] });
+    const res = await anna.put(`/api/v1/templates/${tpl.id}`, { title: "Ausflug", tagIds: [tag.id] });
+    expect(res.json().template).toMatchObject({ title: "Ausflug", tags: [{ id: tag.id }] });
   });
 
   it("lehnt leere Titel und fremde Tags ab", async () => {
@@ -181,13 +181,13 @@ describe("Punkte und Unterpunkte (F-13, F-14)", () => {
     expect(titles(last.items)).toEqual([["Ebene 1", [["Ebene 2", [["Ebene 3", [["Ebene 4", [["Ebene 5", ["Ebene 6"]]]]]]]]]]]);
   });
 
-  it("ändert Titel/Beschreibung und aktualisiert die Vorlage (updatedAt)", async () => {
+  it("ändert den Titel und aktualisiert die Vorlage (updatedAt)", async () => {
     const tpl = await makeTemplate(anna);
     const { itemId } = await addItem(anna, tpl.id, "A");
     const before = ctx.db.select().from(schema.templates).get()!.updatedAt;
     await new Promise((r) => setTimeout(r, 5));
-    const res = await anna.put(`/api/v1/template-items/${itemId}`, { title: "A neu", description: "Details" });
-    expect(res.json().items[0]).toMatchObject({ title: "A neu", description: "Details" });
+    const res = await anna.put(`/api/v1/template-items/${itemId}`, { title: "A neu" });
+    expect(res.json().items[0]).toMatchObject({ title: "A neu" });
     expect(ctx.db.select().from(schema.templates).get()!.updatedAt).toBeGreaterThan(before);
   });
 
@@ -291,7 +291,7 @@ describe("Verschieben per Drag-and-Drop (F-14)", () => {
 });
 
 describe("Ganze Vorlage in einem Schritt (Anlegen/Speichern mit Punktebaum)", () => {
-  const tree = [{ title: "A", children: [{ title: "A1" }, { title: "A2", description: "Text" }] }, { title: "B" }];
+  const tree = [{ title: "A", children: [{ title: "A1" }, { title: "A2" }] }, { title: "B" }];
 
   it("legt eine Vorlage samt Punktebaum in einem Aufruf an", async () => {
     const res = await anna.post("/api/v1/templates", { title: "Neu", items: tree });
@@ -299,7 +299,6 @@ describe("Ganze Vorlage in einem Schritt (Anlegen/Speichern mit Punktebaum)", ()
     const t = res.json().template;
     expect(titles(t.items)).toEqual([["A", ["A1", "A2"]], "B"]);
     expect(t.itemCount).toBe(4);
-    expect(t.items[0].children[1].description).toBe("Text");
   });
 
   it("ersetzt beim Ändern alle Punkte; ohne items bleiben sie", async () => {
@@ -326,5 +325,55 @@ describe("Ganze Vorlage in einem Schritt (Anlegen/Speichern mit Punktebaum)", ()
     const bob = await newUser(ctx.app, "bob@example.org", "Bob");
     const t = await makeTemplate(anna, "Annas", { items: tree });
     expect((await bob.put(`/api/v1/templates/${t.id}`, { items: [] })).statusCode).toBe(404);
+  });
+});
+
+describe("Vorlage in Vorlage (Verweise)", () => {
+  const withRef = async (title: string, refTemplateId: string, extra: object[] = []) =>
+    makeTemplate(anna, title, { items: [...extra, { refTemplateId }] });
+
+  it("zeigt Verweise mit Namen, Anzahl der Punkte und Verwendung; Änderungen der verwiesenen Vorlage wirken sofort", async () => {
+    const hyg = await makeTemplate(anna, "Hygiene", { items: [{ title: "Zahnpasta" }, { title: "Zahnbürste" }] });
+    const nacht = await withRef("Übernachten", hyg.id, [{ title: "Schlafhose" }]);
+    const detail = (await anna.get(`/api/v1/templates/${nacht.id}`)).json().template;
+    expect(detail.items[1]).toMatchObject({ title: "Hygiene", children: [], ref: { templateId: hyg.id, title: "Hygiene", itemCount: 2, missing: false } });
+    expect((await anna.get(`/api/v1/templates/${hyg.id}`)).json().template.usedInCount).toBe(1);
+    await addItem(anna, hyg.id, "Rasierer");
+    await anna.put(`/api/v1/templates/${hyg.id}`, { title: "Bad" });
+    const again = (await anna.get(`/api/v1/templates/${nacht.id}`)).json().template.items[1];
+    expect(again).toMatchObject({ title: "Bad", ref: { title: "Bad", itemCount: 3 } });
+    const list = (await anna.get("/api/v1/templates")).json().templates as { id: string; usedInCount: number }[];
+    expect(list.find((t) => t.id === hyg.id)!.usedInCount).toBe(1);
+  });
+
+  it("lehnt sich selbst, Kreise, fremde und unbekannte Vorlagen ab; Punkte unter einem Verweis sind nicht möglich", async () => {
+    const a = await makeTemplate(anna, "A");
+    const b = await withRef("B", a.id);
+    for (const [id, ref, error] of [[a.id, a.id, "ref_cycle"], [a.id, b.id, "ref_cycle"], [a.id, crypto.randomUUID(), "unknown_template"]] as const) {
+      const res = await anna.put(`/api/v1/templates/${id}`, { items: [{ refTemplateId: ref }] });
+      expect([res.statusCode, res.json().error]).toEqual([422, error]);
+    }
+    const bob = await newUser(ctx.app, "bob@example.org", "Bob");
+    const theirs = await makeTemplate(bob, "Bobs");
+    expect((await anna.put(`/api/v1/templates/${a.id}`, { items: [{ refTemplateId: theirs.id }] })).json().error).toBe("unknown_template");
+    expect((await anna.put(`/api/v1/templates/${a.id}`, { items: [{}] })).statusCode).toBe(422);
+    const refItem = (await anna.get(`/api/v1/templates/${b.id}`)).json().template.items[0].id as string;
+    const under = await anna.post(`/api/v1/templates/${b.id}/items`, { title: "x", parentItemId: refItem });
+    expect([under.statusCode, under.json().error]).toEqual([404, "parent_not_found"]);
+  });
+
+  it("gelöschte Vorlage: Verweis gilt als fehlend; beim Wiederherstellen ist er wieder da; Duplikat und Export", async () => {
+    const hyg = await makeTemplate(anna, "Hygiene", { items: [{ title: "Zahnpasta" }] });
+    const nacht = await withRef("Übernachten", hyg.id);
+    const copy = (await anna.post(`/api/v1/templates/${nacht.id}/duplicate`)).json().template;
+    expect(copy.items[0].ref.templateId).toBe(hyg.id);
+    const exported = JSON.parse((await anna.get(`/api/v1/templates/${nacht.id}/export`)).body).templates[0];
+    expect(exported.items).toEqual([{ title: "Hygiene", children: [{ title: "Zahnpasta", children: [] }] }]);
+
+    await anna.del(`/api/v1/templates/${hyg.id}`);
+    expect((await anna.get(`/api/v1/templates/${nacht.id}`)).json().template.items[0].ref).toMatchObject({ missing: true });
+    expect((await anna.get(`/api/v1/templates/${hyg.id}`)).statusCode).toBe(404);
+    await anna.post(`/api/v1/trash/template/${hyg.id}/restore`);
+    expect((await anna.get(`/api/v1/templates/${nacht.id}`)).json().template.items[0].ref).toMatchObject({ missing: false, itemCount: 1 });
   });
 });

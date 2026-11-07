@@ -21,20 +21,20 @@ const importCsv = (client: Client, content: string, extra: object = {}) => clien
 async function seed(client: Client) {
   const tagA = (await client.post("/api/v1/tags", { name: "Reisen", color: "#2563eb" })).json().tag.id;
   const tagB = (await client.post("/api/v1/tags", { name: "Outdoor", color: "#16a34a" })).json().tag.id;
-  const mk = async (title: string, tagIds: string[], structure: (string | [string, string[]])[], description?: string) => {
-    const t = (await client.post("/api/v1/templates", { title, tagIds, ...(description && { description }) })).json().template.id as string;
+  const mk = async (title: string, tagIds: string[], structure: (string | [string, string[]])[]) => {
+    const t = (await client.post("/api/v1/templates", { title, tagIds })).json().template.id as string;
     for (const e of structure) {
       const [name, kids] = Array.isArray(e) ? e : [e, []];
-      const parent = (await client.post(`/api/v1/templates/${t}/items`, { title: name, description: name === "Rucksack" ? "Wetterfest, 30 l" : undefined })).json().itemId;
+      const parent = (await client.post(`/api/v1/templates/${t}/items`, { title: name })).json().itemId;
       for (const k of kids) await client.post(`/api/v1/templates/${t}/items`, { title: k, parentItemId: parent });
     }
     return t;
   };
-  const tag = await mk("Tagesausflug", [tagA, tagB], [["Rucksack", ["Sonnencreme", "Regenjacke"]], "Route prüfen"], "Für unterwegs");
+  const tag = await mk("Tagesausflug", [tagA, tagB], [["Rucksack", ["Sonnencreme", "Regenjacke"]], "Route prüfen"]);
   const therme = await mk("Therme", [tagA], ["Badesachen", "Handtuch"]);
   const run = (await client.post("/api/v1/runs", { title: "Ausflug Füssen", templateIds: [tag, therme] })).json().run;
-  await client.put(`/api/v1/run-items/${run.sections[0].items[0].children[0].id}`, { isChecked: true });
-  await client.put(`/api/v1/run-items/${run.sections[1].items[0].id}`, { isChecked: true });
+  await client.put(`/api/v1/run-items/${run.sections[0].items[0].children[0].children[0].id}`, { isChecked: true });
+  await client.put(`/api/v1/run-items/${run.sections[0].items[1].children[0].id}`, { isChecked: true });
   const archived = (await client.post("/api/v1/runs", { title: "Skiwochenende", templateIds: [therme] })).json().run;
   await client.post(`/api/v1/runs/${archived.id}/archive`);
   return { tag, therme, run, archived };
@@ -67,8 +67,8 @@ describe("Export (F-50)", () => {
     expect(doc.tags).toEqual([{ name: "Outdoor", color: "#16a34a" }, { name: "Reisen", color: "#2563eb" }]);
     expect(res.body).not.toMatch(/Im Papierkorb|passwordHash|tokenHash|argon2|geheimes-passwort|"id"|ownerId|\/s\//);
     expect(doc.templates[0].items[0]).toEqual({
-      title: "Rucksack", description: "Wetterfest, 30 l",
-      children: [{ title: "Sonnencreme", description: null, children: [] }, { title: "Regenjacke", description: null, children: [] }],
+      title: "Rucksack",
+      children: [{ title: "Sonnencreme", children: [] }, { title: "Regenjacke", children: [] }],
     });
   });
 
@@ -79,15 +79,15 @@ describe("Export (F-50)", () => {
     const csv = await get("?format=csv");
     expect(csv.headers["content-type"]).toBe("text/csv; charset=utf-8");
     expect(csv.headers["content-disposition"]).toContain("tagesausflug-");
-    expect(csv.body.startsWith("﻿Vorlage,Ebene,Titel,Beschreibung\r\n")).toBe(true);
-    expect(csv.body).toContain("Tagesausflug,1,Rucksack,\"Wetterfest, 30 l\"\r\n");
-    expect(csv.body).toContain("Tagesausflug,2,Sonnencreme,\r\n");
-    expect((await get("?format=csv&delimiter=semicolon")).body).toContain("Tagesausflug;2;Regenjacke;\r\n");
-    expect((await get("?format=csv&delimiter=tab")).body).toContain("Tagesausflug\t1\tRoute prüfen\t\r\n");
+    expect(csv.body.startsWith("﻿Vorlage,Ebene,Titel\r\n")).toBe(true);
+    expect(csv.body).toContain("Tagesausflug,1,Rucksack\r\n");
+    expect(csv.body).toContain("Tagesausflug,2,Sonnencreme\r\n");
+    expect((await get("?format=csv&delimiter=semicolon")).body).toContain("Tagesausflug;2;Regenjacke\r\n");
+    expect((await get("?format=csv&delimiter=tab")).body).toContain("Tagesausflug\t1\tRoute prüfen\r\n");
 
     const md = await get("?format=md");
     expect(md.headers["content-type"]).toBe("text/markdown; charset=utf-8");
-    expect(md.body).toBe("# Tagesausflug\n\nFür unterwegs\n\nTags: Outdoor, Reisen\n\n- Rucksack – Wetterfest, 30 l\n  - Sonnencreme\n  - Regenjacke\n- Route prüfen\n");
+    expect(md.body).toBe("# Tagesausflug\n\nTags: Outdoor, Reisen\n\n- Rucksack\n  - Sonnencreme\n  - Regenjacke\n- Route prüfen\n");
 
     const one = json((await get("")).body);
     expect(one.templates).toHaveLength(1);
@@ -97,12 +97,12 @@ describe("Export (F-50)", () => {
   it("exportiert eine Durchführung als CSV und Markdown mit Abhak-Status", async () => {
     const s = await seed(anna);
     const csv = (await anna.get(`/api/v1/runs/${s.run.id}/export?format=csv&delimiter=semicolon`)).body;
-    expect(csv.split("\r\n")[0]).toBe("﻿Abschnitt;Ebene;Titel;Beschreibung;Erledigt;Erledigt am");
-    expect(csv).toMatch(/Tagesausflug;2;Sonnencreme;;ja;\d{4}-\d{2}-\d{2}T/);
-    expect(csv).toContain("Tagesausflug;2;Regenjacke;;nein;\r\n");
+    expect(csv.split("\r\n")[0]).toBe("﻿Abschnitt;Ebene;Titel;Erledigt;Erledigt am");
+    expect(csv).toMatch(/Ausflug Füssen;3;Sonnencreme;ja;\d{4}-\d{2}-\d{2}T/);
+    expect(csv).toContain("Ausflug Füssen;3;Regenjacke;nein;\r\n");
     const md = (await anna.get(`/api/v1/runs/${s.run.id}/export?format=md`)).body;
-    expect(md).toBe("# Ausflug Füssen\n\n## Tagesausflug\n\n- [ ] Rucksack – Wetterfest, 30 l\n  - [x] Sonnencreme\n  - [ ] Regenjacke\n- [ ] Route prüfen\n\n## Therme\n\n- [x] Badesachen\n- [ ] Handtuch\n");
-    expect(json((await anna.get(`/api/v1/runs/${s.run.id}/export`)).body).runs[0].sections[0].items[0].children[0]).toMatchObject({ isChecked: true });
+    expect(md).toBe("# Ausflug Füssen\n\n- [ ] Tagesausflug\n  - [ ] Rucksack\n    - [x] Sonnencreme\n    - [ ] Regenjacke\n  - [ ] Route prüfen\n- [ ] Therme\n  - [x] Badesachen\n  - [ ] Handtuch\n");
+    expect(json((await anna.get(`/api/v1/runs/${s.run.id}/export`)).body).runs[0].sections[0].items[0].children[0].children[0]).toMatchObject({ isChecked: true });
   });
 
   it("macht Dateinamen sicher (Umlaute, Sonderzeichen, Pfadtricks)", async () => {
@@ -116,11 +116,10 @@ describe("Export (F-50)", () => {
 
   it("schützt CSV-Zellen vor Formel-Injektion", async () => {
     const t = (await anna.post("/api/v1/templates", { title: "=Vorlage" })).json().template.id;
-    await anna.post(`/api/v1/templates/${t}/items`, { title: "=HYPERLINK(\"http://evil.example\")", description: "@cmd" });
+    await anna.post(`/api/v1/templates/${t}/items`, { title: "=HYPERLINK(\"http://evil.example\")" });
     const csv = (await anna.get(`/api/v1/templates/${t}/export?format=csv`)).body;
     expect(csv).toContain("'=Vorlage");
     expect(csv).toContain("\"'=HYPERLINK(\"\"http://evil.example\"\")\"");
-    expect(csv).toContain("'@cmd");
   });
 
   it("liefert 404 für fremde, gelöschte und unbekannte Vorlagen/Durchführungen; 400 bei ungültigem Format", async () => {
@@ -147,7 +146,7 @@ describe("Import JSON (F-51)", () => {
 
     const res = await importJson(bob, original);
     expect(res.statusCode).toBe(201);
-    expect(res.json().result).toEqual({ templates: 2, runs: 2, items: 14, tagsCreated: 2, tagsReused: 0 });
+    expect(res.json().result).toEqual({ templates: 2, runs: 2, items: 17, tagsCreated: 2, tagsReused: 0 });
     const copy = json((await bob.get("/api/v1/export")).body);
     expect(normalize(copy)).toEqual(normalize(original));
     // Zeitpunkte des Abhakens bleiben erhalten
@@ -156,7 +155,7 @@ describe("Import JSON (F-51)", () => {
     expect(json((await anna.get("/api/v1/export")).body).templates).toHaveLength(2);
     // die importierte Durchführung ist voll funktionsfähig
     const list = (await bob.get("/api/v1/runs")).json();
-    expect(list.runs[0].progress).toEqual({ done: 2, total: 6 });
+    expect(list.runs[0].progress).toEqual({ done: 0, total: 2 });
     expect((await bob.get("/api/v1/runs?status=archived")).json().total).toBe(1);
   });
 
@@ -197,9 +196,9 @@ describe("Import JSON (F-51)", () => {
     const res = await importJson(bob, doc, { dryRun: true });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toMatchObject({ valid: true, issues: [], counts: { templates: 2, runs: 2, items: 14 } });
+    expect(body).toMatchObject({ valid: true, issues: [], counts: { templates: 2, runs: 2, items: 17 } });
     expect(body.preview.templates[0]).toMatchObject({ title: "Tagesausflug", itemCount: 4, tags: ["Outdoor", "Reisen"], sample: ["Rucksack", "Route prüfen"] });
-    expect(body.preview.runs[0]).toMatchObject({ title: "Ausflug Füssen", status: "active", sections: ["Tagesausflug", "Therme"], progress: { done: 2, total: 6 } });
+    expect(body.preview.runs[0]).toMatchObject({ title: "Ausflug Füssen", status: "active", sections: ["Ausflug Füssen"], progress: { done: 0, total: 2 } });
     expect(body.preview.tags).toEqual({ new: ["Outdoor"], existing: ["Reisen"] });
     expect(ctx.db.select().from(schema.templates).all().filter((t) => t.ownerId !== undefined)).toHaveLength(2); // nur Annas
     expect((await bob.get("/api/v1/templates")).json().total).toBe(0);
@@ -270,7 +269,7 @@ describe("Import CSV (F-51, Migration aus Mendix)", () => {
   };
 
   it("liest Komma, Semikolon und Tab, gruppiert nach Vorlage und bildet Unterpunkte aus der Ebene", async () => {
-    const rows = [["Vorlage", "Ebene", "Titel", "Beschreibung"], ["Packliste", "1", "Rucksack", "30 l"], ["Packliste", "2", "Sonnencreme", ""], ["Packliste", "2", "Regenjacke", ""], ["Packliste", "1", "Karte", ""], ["Therme", "1", "Handtuch", ""], ["Packliste", "3", "tief", ""]];
+    const rows = [["Vorlage", "Ebene", "Titel"], ["Packliste", "1", "Rucksack"], ["Packliste", "2", "Sonnencreme"], ["Packliste", "2", "Regenjacke"], ["Packliste", "1", "Karte"], ["Therme", "1", "Handtuch"], ["Packliste", "3", "tief"]];
     // Zeile 7 ist absichtlich ungültig (Ebene 3 unter Ebene 1) → zuerst ohne sie
     const valid = rows.slice(0, 6);
     for (const d of [",", ";", "\t"]) {
@@ -285,22 +284,20 @@ describe("Import CSV (F-51, Migration aus Mendix)", () => {
     }
     await importCsv(anna, valid.map((r) => r.join(";")).join("\n"));
     expect(await tree(anna, "Packliste")).toEqual([["Rucksack", ["Sonnencreme", "Regenjacke"]], "Karte"]);
-    const first = (await anna.get("/api/v1/templates?search=Packliste")).json().templates[0].id;
-    expect((await anna.get(`/api/v1/templates/${first}`)).json().template.items[0].description).toBe("30 l");
   });
 
-  it("erkennt Mendix-typische Spaltennamen (Checklist, Task, Description) und ignoriert Zusatzspalten mit Hinweis", async () => {
+  it("erkennt Mendix-typische Spaltennamen (Checklist, Task) und ignoriert Zusatzspalten mit Hinweis", async () => {
     const csv = "Checklist;Task;Description;Checked;Erstellt\nPutzplan;Küche;Herd und Ofen;Nein;2025-01-01\nPutzplan;Bad;;Ja;2025-01-02";
     const dry = await importCsv(anna, csv, { dryRun: true });
     expect(dry.json()).toMatchObject({ valid: true, counts: { templates: 1, items: 2 } });
-    expect(dry.json().warnings).toEqual(["Ignorierte Spalten: Checked, Erstellt"]);
+    expect(dry.json().warnings).toEqual(["Ignorierte Spalten: Description, Checked, Erstellt"]);
     expect(dry.json().preview.templates[0]).toMatchObject({ title: "Putzplan", sample: ["Küche", "Bad"] });
     await importCsv(anna, csv);
     expect(await tree(anna, "Putzplan")).toEqual(["Küche", "Bad"]);
   });
 
   it("verwendet `title`, wenn die Datei keine Spalte „Vorlage“ hat (z. B. Aufgabenliste einer einzelnen Checkliste)", async () => {
-    const csv = "Name,Beschreibung\nEins,\nZwei,mit Text";
+    const csv = "Name\nEins\nZwei";
     const noTitle = await importCsv(anna, csv, { dryRun: true });
     expect(noTitle.json().valid).toBe(false);
     expect(noTitle.json().issues[0].message).toMatch(/Vorlage/);
@@ -308,16 +305,16 @@ describe("Import CSV (F-51, Migration aus Mendix)", () => {
     expect(await tree(anna, "Meine Liste")).toEqual(["Eins", "Zwei"]);
   });
 
-  it("verarbeitet BOM, Anführungszeichen, Umbrüche und Umlaute; stellt Formel-Schutz wieder her", async () => {
-    const csv = "﻿Vorlage;Titel;Beschreibung\r\n\"Übernachtung\";\"Zahnbürste, Zahnpasta\";\"Zeile 1\nZeile 2\"\r\nÜbernachtung;'=Sonderfall;\"sagt \"\"hi\"\"\"\r\n";
+  it("verarbeitet BOM, Anführungszeichen und Umlaute; stellt Formel-Schutz wieder her", async () => {
+    const csv = "﻿Vorlage;Titel\r\n\"Übernachtung\";\"Zahnbürste, Zahnpasta\"\r\nÜbernachtung;'=Sonderfall\r\n";
     expect((await importCsv(anna, csv)).statusCode).toBe(201);
     const id = (await anna.get("/api/v1/templates")).json().templates[0].id;
     const items = (await anna.get(`/api/v1/templates/${id}`)).json().template.items;
-    expect(items.map((i: { title: string; description: string }) => [i.title, i.description])).toEqual([["Zahnbürste, Zahnpasta", "Zeile 1\nZeile 2"], ["=Sonderfall", 'sagt "hi"']]);
+    expect(items.map((i: { title: string }) => i.title)).toEqual(["Zahnbürste, Zahnpasta", "=Sonderfall"]);
   });
 
   it("meldet Fehler je Zeile mit Zeilennummer und legt bei Fehlern nichts an", async () => {
-    const csv = ["Vorlage,Ebene,Titel,Beschreibung", "A,1,ok,", "A,1,,fehlt", "A,x,kaputt,", "A,0,null,", ",1,ohne Vorlage,", "A,3,sprung,", `A,1,${"y".repeat(201)},`];
+    const csv = ["Vorlage,Ebene,Titel", "A,1,ok", "A,1,", "A,x,kaputt", "A,0,null", ",1,ohne Vorlage", "A,3,sprung", `A,1,${"y".repeat(201)}`];
     const res = await importCsv(anna, csv.join("\n"), { dryRun: true });
     const issues = res.json().issues as Issue[];
     expect(res.json().valid).toBe(false);
@@ -349,11 +346,11 @@ describe("Import CSV (F-51, Migration aus Mendix)", () => {
     const s = await seed(anna);
     const csv = (await anna.get(`/api/v1/templates/${s.tag}/export?format=csv&delimiter=semicolon`)).body;
     expect((await importCsv(anna, csv)).statusCode).toBe(201);
-    const templates = (await anna.get("/api/v1/templates?search=Tagesausflug&sort=updated")).json().templates as { id: string; description: string | null; tags: unknown[] }[];
+    const templates = (await anna.get("/api/v1/templates?search=Tagesausflug&sort=updated")).json().templates as { id: string; tags: unknown[] }[];
     expect(templates).toHaveLength(2);
     const copy = (await anna.get(`/api/v1/templates/${templates[0]!.id}`)).json().template;
     const orig = (await anna.get(`/api/v1/templates/${s.tag}`)).json().template;
-    const shape = (items: { title: string; description: string | null; children: unknown[] }[]): unknown[] => items.map((i) => [i.title, i.description, shape(i.children as never)]);
+    const shape = (items: { title: string; children: unknown[] }[]): unknown[] => items.map((i) => [i.title, shape(i.children as never)]);
     expect(shape(copy.items)).toEqual(shape(orig.items));
   });
 });

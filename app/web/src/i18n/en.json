@@ -129,7 +129,8 @@
     "parent_not_found": "The parent item no longer exists. Please reload the page.",
     "invalid_password": "The password is wrong.",
     "read_only_link": "This link only allows viewing.",
-    "unknown_template": "At least one template no longer exists. Please reload the page."
+    "unknown_template": "At least one template no longer exists. Please reload the page.",
+    "ref_cycle": "A template cannot contain itself – not even via other templates."
   },
   "profile": {
     "account": {
@@ -249,7 +250,7 @@
       "exportAll": "Export all templates (JSON)",
       "exportHint": "Contains all templates with items and tags, no passwords or tokens. You can export single templates and checklists directly there.",
       "importTitle": "Import",
-      "importHint": "JSON (export format) or CSV with the columns Vorlage, Ebene, Titel, Beschreibung. Only templates are imported, always as new entries; you check a preview first.",
+      "importHint": "JSON (export format) or CSV with the columns Vorlage, Ebene, Titel. Only templates are imported, always as new entries; you check a preview first.",
       "file": "Choose file",
       "format": "Format",
       "csvTitle": "Template name (only if the CSV has no “Vorlage” column)",
@@ -350,13 +351,14 @@
     "deleted": "“{{title}}” was moved to the trash.",
     "pagination": "Pages",
     "pageOf": "Page {{page}} of {{pages}}",
-    "continueToItems": "Continue to items"
+    "continueToItems": "Continue to items",
+    "usedWarning_one": "This template is used in {{count}} template. If you delete it, the inserted items disappear there. Are you sure?",
+    "usedWarning_other": "This template is used in {{count}} templates. If you delete it, the inserted items disappear there. Are you sure?"
   },
   "editor": {
     "back": "All templates",
     "notFound": "This template does not exist (any more).",
     "details": "Details",
-    "description": "Description (optional)",
     "tags": "Tags",
     "noTags": "No tags yet – create the first one below.",
     "newTag": "New tag",
@@ -371,7 +373,11 @@
     "creatingHeading": "New template: {{title}}",
     "createHint": "The template is only saved when you click “Create”. If you leave this page first, everything is discarded.",
     "exportCsvHint": "Table with semicolons, opens directly in Excel.",
-    "exportJsonHint": "Complete, can be imported again."
+    "exportJsonHint": "Complete, can be imported again.",
+    "addTemplate": "Insert template",
+    "addTemplateHint": "The items of the chosen template appear here as sub-items and stay linked to it.",
+    "addTemplateText": "The chosen templates are inserted at the end. Changes to them automatically apply here too.",
+    "addSelected": "Insert"
   },
   "items": {
     "listLabel": "Template items",
@@ -413,7 +419,11 @@
       "end": "Dropped {{title}}.",
       "cancel": "Moving {{title}} cancelled."
     },
-    "apply": "Apply"
+    "apply": "Apply",
+    "templateBadge": "Template",
+    "missingTemplate": "Template no longer exists",
+    "refCount_one": "{{count}} item",
+    "refCount_other": "{{count}} items"
   },
   "runs": {
     "new": "New checklist",
@@ -437,7 +447,7 @@
     "count_other": "{{count}} checklists",
     "changed": "changed on {{date}}",
     "archivedOn": "archived on {{date}}",
-    "noSections": "No sections",
+    "noSections": "No items.",
     "shared": "Shared",
     "progressOf": "Progress of {{title}}",
     "reopen": "Restore",
@@ -453,9 +463,6 @@
     "addTemplates": "Add templates",
     "addTemplatesHint": "The templates are appended as new sections. Later changes to a template do not affect this checklist.",
     "addSelected": "Add",
-    "addSection": "Custom section",
-    "sectionTitle": "Section title",
-    "sectionHint": "For items that are not in any template.",
     "share": "Share…",
     "finish": "Complete…",
     "finishTitle": "Complete checklist",
@@ -468,7 +475,7 @@
     "archivedNotice": "“{{title}}” was archived.",
     "completedNotice": "“{{title}}” was completed and is in the trash.",
     "addPlaceholder": "New item…",
-    "addLabel": "New item in {{title}}",
+    "addLabel": "Add a new item",
     "addChild": "Add sub-item to {{title}}",
     "addChildShort": "Add sub-item",
     "addChildLabel": "New sub-item of {{title}}",
@@ -476,26 +483,17 @@
     "deleteItem": "Delete {{title}}",
     "deleteItemTitle": "Delete item?",
     "deleteItemText": "“{{title}}” and all its sub-items will be deleted.",
-    "removeSection": "Remove section {{title}}",
-    "removeSectionShort": "Remove",
-    "removeSectionTitle": "Remove section?",
-    "removeSectionText": "The section “{{title}}” is removed with all its items.",
-    "emptySection": "No items yet.",
-    "sectionProgress": "Progress of {{title}}",
     "subProgress": "{{done}} of {{total}} sub-items done",
     "hideDone": "Hide completed",
     "allDone": "All done!",
     "allDoneText": "When you are finished, complete or archive the checklist.",
-    "allHidden": "All items in this section are done.",
+    "allHidden": "All items are done.",
     "titleHint": "Suggested from the templates – you can change it.",
     "newTemplate": "Create a template",
     "step1": "1. Create a template (e.g. a packing list)",
     "step2": "2. Start a checklist from it and tick items off",
     "dropHere": "Drop here",
     "sectionEnd": "end of the section",
-    "sectionUp": "Move section {{title}} up",
-    "sectionDown": "Move section {{title}} down",
-    "sectionOrder": "Order of {{title}}",
     "a11y": {
       "instructions": "To move, press Space, use the arrow keys to move up or down (also into other sections) and press Space to drop. Escape cancels. Use the buttons on the item to indent or outdent."
     },
@@ -503,7 +501,9 @@
     "exportCsvHint": "Table with semicolons, opens directly in Excel.",
     "exportMdHint": "Readable text with checkboxes.",
     "exportPrintHint": "Opens the browser print dialog (also for PDF).",
-    "print": "Print"
+    "print": "Print",
+    "itemsLabel": "Items",
+    "emptySection": "No items yet. Add one below or add templates."
   },
   "share": {
     "title": "Share checklist",

@@ -141,7 +141,7 @@ describe("Papierkorb (F-31)", () => {
     await anna.post(`/api/v1/trash/run/${archived.id}/restore`);
     expect(runRow(active.id)).toMatchObject({ status: "active", deletedAt: null, statusBeforeDelete: null });
     expect(runRow(archived.id)).toMatchObject({ status: "archived", deletedAt: null });
-    expect((await anna.get(`/api/v1/runs/${active.id}`)).json().run.progress.total).toBe(2);
+    expect((await anna.get(`/api/v1/runs/${active.id}`)).json().run.progress.total).toBe(1);
   });
 
   it("liefert 404 für nicht gelöschte, unbekannte oder falsch typisierte Einträge", async () => {
@@ -173,8 +173,8 @@ describe("Papierkorb (F-31)", () => {
     await anna.del(`/api/v1/trash/template/${tpl}`);
     expect(ctx.db.select().from(schema.templateItems).all()).toHaveLength(0);
     const detail = (await anna.get(`/api/v1/runs/${run.id}`)).json().run;
-    expect(detail.sections[0]).toMatchObject({ title: "V", sourceTemplateId: null });
-    expect(detail.progress.total).toBe(2);
+    expect(detail.sections[0].items[0]).toMatchObject({ title: "V" });
+    expect(detail.sections[0].items[0].children.map((i: { title: string }) => i.title)).toEqual(["a", "b"]);
   });
 
   it("leert den Papierkorb nur für den eigenen Nutzer und lässt aktive/archivierte Daten stehen", async () => {

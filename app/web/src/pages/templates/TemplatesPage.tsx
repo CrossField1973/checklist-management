@@ -1,11 +1,10 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
-import type { TemplateDetail, TemplateSummary } from "../../api/types";
-import { Alert, Button, Dialog, Select, Spinner, TextArea, TextInput, useErrorText } from "../../components/ui";
-import { CopyIcon, TrashIcon } from "../../components/icons";
+import type { TemplateSummary } from "../../api/types";
+import { Alert, Button, Dialog, Select, Spinner, TextInput, useErrorText } from "../../components/ui";
 import { TagChip } from "./TagChip";
 import { TagPicker } from "./TagPicker";
 import { useTags } from "./TagManager";
@@ -23,7 +22,6 @@ function useDebounced<T>(value: T, ms = 250): T {
 export default function TemplatesPage() {
   const { t, i18n } = useTranslation();
   const errorText = useErrorText();
-  const qc = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
@@ -57,48 +55,19 @@ export default function TemplatesPage() {
 
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const [newDescription, setNewDescription] = useState("");
   const [newTagIds, setNewTagIds] = useState<string[]>([]);
-  const [toDelete, setToDelete] = useState<TemplateSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const notice = (location.state as { notice?: string } | null)?.notice;
 
-  /** Der Dialog sammelt nur Titel, Beschreibung und Tags; angelegt wird erst auf der Seite mit „Erstellen“. */
+  /** Der Dialog sammelt nur Titel und Tags; angelegt wird erst auf der Seite mit „Erstellen“. */
   function create(e: FormEvent) {
     e.preventDefault();
-    navigate("/templates/new", { state: { draft: { title: newTitle.trim(), description: newDescription, tagIds: newTagIds } } });
+    navigate("/templates/new", { state: { draft: { title: newTitle.trim(), tagIds: newTagIds } } });
   }
-  function openCreate() { setNewTitle(""); setNewDescription(""); setNewTagIds([]); setError(null); setCreating(true); }
+  function openCreate() { setNewTitle(""); setNewTagIds([]); setError(null); setCreating(true); }
   /** Klick irgendwo in die Zeile öffnet die Vorlage – außer auf Links und Schaltflächen, die ihre eigene Aktion haben. */
   const openRow = (id: string) => (e: MouseEvent) => { if (!(e.target as HTMLElement).closest("a,button")) navigate(`/templates/${id}`); };
 
-  async function duplicate(tpl: TemplateSummary) {
-    setError(null);
-    try {
-      const res = await api.post<{ template: TemplateDetail }>(`/templates/${tpl.id}/duplicate`);
-      await qc.invalidateQueries({ queryKey: ["templates"] });
-      navigate(`/templates/${res.template.id}`, { state: { notice: t("templates.duplicated") } });
-    } catch (err) {
-      setError(errorText(err));
-    }
-  }
-
-  async function remove() {
-    if (!toDelete) return;
-    setBusy(true);
-    try {
-      await api.del(`/templates/${toDelete.id}`);
-      await qc.invalidateQueries({ queryKey: ["templates"] });
-      await qc.invalidateQueries({ queryKey: ["tags"] });
-      setToDelete(null);
-      navigate(".", { replace: true, state: { notice: t("templates.deleted", { title: toDelete.title }) } });
-    } catch (err) {
-      setError(errorText(err));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   const total = list.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -154,10 +123,6 @@ export default function TemplatesPage() {
                   <p className="hint m-0">{t("templates.items", { count: tpl.itemCount })} · {t("templates.changed", { date: date(tpl.updatedAt) })}</p>
                   {tpl.tags.length > 0 && <p className="m-0 mt-1 flex flex-wrap gap-1">{tpl.tags.map((tag) => <TagChip key={tag.id} tag={tag} />)}</p>}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => void duplicate(tpl)} aria-label={t("templates.duplicateNamed", { title: tpl.title })} title={t("templates.duplicate")}><CopyIcon /></Button>
-                  <Button size="sm" variant="danger" onClick={() => setToDelete(tpl)} aria-label={t("templates.deleteNamed", { title: tpl.title })} title={t("common.delete")}><TrashIcon /></Button>
-                </div>
               </li>
             ))}
           </ul>
@@ -174,7 +139,6 @@ export default function TemplatesPage() {
       <Dialog open={creating} onClose={() => setCreating(false)} title={t("templates.newTitle")}>
         <form onSubmit={create} noValidate>
           <TextInput label={t("templates.titleLabel")} required autoFocus maxLength={200} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
-          <TextArea label={t("editor.description")} rows={3} maxLength={5000} value={newDescription} onChange={(e) => setNewDescription(e.target.value)} />
           <TagPicker value={newTagIds} onChange={setNewTagIds} />
           <div className="mt-5 flex justify-end gap-2">
             <Button onClick={() => setCreating(false)}>{t("common.cancel")}</Button>
@@ -183,12 +147,6 @@ export default function TemplatesPage() {
         </form>
       </Dialog>
 
-      <Dialog
-        open={toDelete !== null} onClose={() => setToDelete(null)} title={t("templates.deleteTitle")}
-        footer={<><Button onClick={() => setToDelete(null)}>{t("common.cancel")}</Button><Button variant="danger" disabled={busy} onClick={() => void remove()}>{t("common.delete")}</Button></>}
-      >
-        <p className="m-0">{t("templates.deleteText", { title: toDelete?.title })}</p>
-      </Dialog>
 
     </>
   );

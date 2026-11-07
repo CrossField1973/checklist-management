@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   countNodes, descendantIds, findNode, findParentId, flatten, getProjection, indentTarget, isSamePlace, moveDownTarget, moveInTree,
-  moveUpTarget, outdentTarget, getBoardProjection, moveBetweenSections, withProgress, type BoardRow, type ItemNode,
+  moveUpTarget, outdentTarget, getBoardProjection, moveBetweenSections, withProgress, applyCheck, toInput, type BoardRow, type ItemNode,
 } from "./tree";
 
-const n = (id: string, children: ItemNode[] = [], position = 0): ItemNode => ({ id, title: id, description: null, position, children });
+const n = (id: string, children: ItemNode[] = [], position = 0): ItemNode => ({ id, title: id, position, children });
 /** A[A1,A2], B, C – wie in den Server-Tests */
 const sample = (): ItemNode[] => [n("A", [n("A1", [], 0), n("A2", [], 1)], 0), n("B", [], 1), n("C", [], 2)];
 const shape = (tree: ItemNode[]): unknown[] => tree.map((x) => (x.children.length ? [x.id, shape(x.children)] : x.id));
@@ -218,18 +218,39 @@ describe("Mehrere Abschnitte: getBoardProjection", () => {
   });
 });
 
-describe("withProgress", () => {
+describe("withProgress und applyCheck", () => {
   const leaf = (id: string, isChecked: boolean, children: any[] = []) => ({ id, isChecked, childProgress: { done: 9, total: 9 }, children });
 
-  it("zählt alle Ebenen je Unterpunkt-Gruppe, Abschnitt und gesamt neu", () => {
+  it("zählt nur die direkte Ebene und leitet Überpunkte aus ihren Unterpunkten ab", () => {
     const sections = [
-      { id: "s1", progress: { done: 0, total: 0 }, items: [leaf("a", true, [leaf("b", false), leaf("c", true)]), leaf("d", false)] },
+      { id: "s1", progress: { done: 0, total: 0 }, items: [leaf("a", false, [leaf("b", true), leaf("c", true)]), leaf("d", false)] },
       { id: "s2", progress: { done: 5, total: 5 }, items: [] },
     ];
     const r = withProgress(sections);
-    expect(r.sections[0]!.items[0]!.childProgress).toEqual({ done: 1, total: 2 });
+    expect(r.sections[0]!.items[0]!.isChecked).toBe(true); // alle Unterpunkte erledigt
+    expect(r.sections[0]!.items[0]!.childProgress).toEqual({ done: 2, total: 2 });
     expect(r.sections[0]!.items[1]!.childProgress).toEqual({ done: 0, total: 0 });
-    expect(r.sections.map((s) => s.progress)).toEqual([{ done: 2, total: 4 }, { done: 0, total: 0 }]);
-    expect(r.progress).toEqual({ done: 2, total: 4 });
+    expect(r.sections.map((s) => s.progress)).toEqual([{ done: 1, total: 2 }, { done: 0, total: 0 }]);
+    expect(r.progress).toEqual({ done: 1, total: 2 });
+  });
+
+  it("applyCheck hakt einen Punkt samt Unterpunkten ab", () => {
+    const items = [leaf("a", false, [leaf("b", false, [leaf("c", false)])]), leaf("d", false)];
+    const checked = applyCheck(items, "a", true);
+    expect([checked[0]!.isChecked, checked[0]!.children[0]!.isChecked, checked[0]!.children[0]!.children[0]!.isChecked, checked[1]!.isChecked]).toEqual([true, true, true, false]);
+    const back = withProgress([{ id: "s", progress: { done: 0, total: 0 }, items: applyCheck(checked, "c", false) }]);
+    expect(back.sections[0]!.items[0]!.isChecked).toBe(false); // ein offener Unterpunkt macht alle Überpunkte offen
+    expect(back.sections[0]!.items[0]!.children[0]!.isChecked).toBe(false);
+  });
+});
+
+describe("Verweise auf Vorlagen im Baum", () => {
+  const ref = (id: string): ItemNode => ({ id, title: "Hygiene", position: 0, children: [], ref: { templateId: "t9", title: "Hygiene", itemCount: 2, missing: false } });
+  const plain = (id: string): ItemNode => ({ id, title: id, position: 1, children: [] });
+
+  it("werden als refTemplateId gespeichert und nehmen keine Unterpunkte auf", () => {
+    expect(toInput([plain("a"), ref("r")])).toEqual([{ title: "a" }, { refTemplateId: "t9" }]);
+    expect(indentTarget([ref("r"), plain("b")], "b")).toBeNull(); // nicht unter einen Verweis einrücken
+    expect(indentTarget([plain("a"), plain("b")], "b")).not.toBeNull();
   });
 });

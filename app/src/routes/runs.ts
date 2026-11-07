@@ -4,26 +4,20 @@ import { z } from "zod";
 import { schema } from "../db/index.js";
 import type { AppDeps } from "../server.js";
 import {
-  RunItemError, addRunItem, addRunItemTree, appendEmptySection, appendSectionFromTemplate, deleteRunItem, deleteSection,
-  loadRunItems, loadSections, moveRunItem, moveSection, progressOf, renameSection, runDetail, updateRunItem,
+  RunItemError, addRunItem, addRunItemTree, appendTemplateAsItem, deleteRunItem,
+  loadRunItems, moveRunItem, primarySection, progressOf, runDetail, updateRunItem,
 } from "../services/run-items.js";
+import { ItemError } from "../services/template-items.js";
 import { activeShareOfRun, activeSharesOfRuns, shareBadge } from "../services/shares.js";
 import { parse } from "./auth.js";
-import { itemInput } from "./templates.js";
 
 export const id = z.string().uuid();
 export const title = z.string().trim().min(1).max(200);
-export const description = z.string().max(5000).nullable();
 export const idParams = z.object({ id });
 
 export const createBody = z.object({ title, templateIds: z.array(id).max(100).default([]) });
 export const updateBody = z.object({ title });
-export const addSectionsBody = z.union([
-  z.object({ templateIds: z.array(id).min(1).max(100) }),
-  z.object({ title }), // eigener, leerer Abschnitt für selbst angelegte Punkte
-]);
-export const sectionUpdateBody = z.object({ title });
-export const sectionMoveBody = z.object({ position: z.number().int().min(0) });
+export const addTemplatesBody = z.object({ templateIds: z.array(id).min(1).max(100) });
 export const listQuery = z.object({
   status: z.enum(["active", "archived"]).default("active"),
   search: z.string().trim().max(200).optional(),
@@ -31,16 +25,20 @@ export const listQuery = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 export const itemCreate = z.object({
-  title, description: description.optional(), parentItemId: id.nullable().optional(), position: z.number().int().min(0).optional(),
+  title, parentItemId: id.nullable().optional(), position: z.number().int().min(0).optional(),
 });
 /** Mehrere Punkte (mit Unterpunkten) auf einmal ans Ende eines Abschnitts oder unter `parentItemId`. */
-export const itemBulk = z.object({ parentItemId: id.nullable().optional(), items: z.array(itemInput).min(1) });
+const plainItem = z.object({
+  title,
+  get children() { return z.array(plainItem).optional(); },
+});
+export const itemBulk = z.object({ parentItemId: id.nullable().optional(), items: z.array(plainItem).min(1) });
 /** Nicht rekursive Fassung nur für die OpenAPI-Beschreibung. */
 export const itemBulkDoc = z.object({
   parentItemId: id.nullable().optional(),
-  items: z.array(z.object({ title, description: description.optional(), children: z.array(z.record(z.string(), z.unknown())).optional() })).min(1),
+  items: z.array(z.object({ title, children: z.array(z.record(z.string(), z.unknown())).optional() })).min(1),
 });
-export const itemUpdate = z.object({ title: title.optional(), description: description.optional(), isChecked: z.boolean().optional() })
+export const itemUpdate = z.object({ title: title.optional(), isChecked: z.boolean().optional() })
   .refine((b) => Object.keys(b).length > 0, "Keine Änderungen übergeben");
 export const itemMove = z.object({ sectionId: id.optional(), parentItemId: id.nullable(), position: z.number().int().min(0) });
 
@@ -118,7 +116,7 @@ export async function runRoutes(app: FastifyInstance, { db }: AppDeps) {
     const shares = activeSharesOfRuns(db, pageRows.map((r) => r.id));
     const runs = pageRows.map((r) => ({
       id: r.id, title: r.title, status: r.status, createdAt: r.createdAt, updatedAt: r.updatedAt, archivedAt: r.archivedAt,
-      sectionTitles: loadSections(db, r.id).map((s) => s.title),
+      itemTitles: loadRunItems(db, r.id).filter((i) => !i.parentItemId).sort((a, b) => a.position - b.position).map((i) => i.title),
       progress: progressOf(loadRunItems(db, r.id)),
       /** F-20: Kennzeichnung geteilter Durchführungen (null = nicht geteilt) */
       share: shareBadge(shares.get(r.id)),
@@ -135,7 +133,8 @@ export async function runRoutes(app: FastifyInstance, { db }: AppDeps) {
     if (!templates) return reply.code(422).send({ error: "unknown_template" });
     const run = db.transaction((tx) => {
       const [r] = tx.insert(schema.runs).values({ ownerId: userId, title: body.title }).returning().all();
-      for (const t of templates) appendSectionFromTemplate(tx, r!.id, t);
+      primarySection(tx, r!);
+      for (const t of templates) appendTemplateAsItem(tx, r!, t);
       return r!;
     });
     req.log.info({ event: "run_created", userId, runId: run.id, templates: templates.length }, "Durchführung angelegt");
@@ -211,83 +210,65 @@ export async function runRoutes(app: FastifyInstance, { db }: AppDeps) {
     return detail(updated!);
   });
 
-  // ---------- Abschnitte (F-22, F-25) ----------
-  app.post("/api/v1/runs/:id/sections", auth, async (req, reply) => {
+  // ---------- Vorlagen ergänzen (F-22) ----------
+  /** Jede Vorlage wird ein Überpunkt am Ende, ihre Punkte stehen darunter (Momentaufnahme, Verweise aufgelöst). */
+  app.post("/api/v1/runs/:id/templates", auth, async (req, reply) => {
     const p = parse(idParams, req.params, reply);
-    const body = parse(addSectionsBody, req.body, reply);
+    const body = parse(addTemplatesBody, req.body, reply);
     if (!p || !body) return;
     const userId = req.user!.id;
     const run = ownRun(userId, p.id);
     if (!run) return notFound(reply);
     if (run.status !== "active") return notActive(reply);
-    if ("templateIds" in body) {
-      const templates = resolveTemplates(userId, body.templateIds);
-      if (!templates) return reply.code(422).send({ error: "unknown_template" });
-      db.transaction((tx) => templates.forEach((t) => appendSectionFromTemplate(tx, run.id, t)));
-    } else {
-      appendEmptySection(db, run.id, body.title);
+    const templates = resolveTemplates(userId, body.templateIds);
+    if (!templates) return reply.code(422).send({ error: "unknown_template" });
+    try {
+      db.transaction((tx) => templates.forEach((t) => appendTemplateAsItem(tx, run, t)));
+    } catch (err) {
+      if (err instanceof ItemError) return reply.code(422).send({ error: err.code });
+      return itemFail(reply, err);
     }
     touch(run.id);
-    req.log.info({ event: "run_sections_added", userId, runId: run.id }, "Abschnitte hinzugefügt");
+    req.log.info({ event: "run_templates_added", userId, runId: run.id }, "Vorlagen hinzugefügt");
     return reply.code(201).send(detail(run));
   });
 
-  app.delete("/api/v1/run-sections/:id", auth, async (req, reply) => {
+  // ---------- Punkte (F-23 bis F-25) ----------
+  /** Legt einen Punkt oder einen ganzen Punktebaum an (Antwort 201 mit den neuen IDs und dem Stand der Durchführung). */
+  const createItems = (run: Run, section: typeof schema.runSections.$inferSelect, rawBody: unknown, reply: FastifyReply) => {
+    const bulk = rawBody && typeof rawBody === "object" && "items" in rawBody;
+    const body = bulk ? parse(itemBulk, rawBody, reply) : parse(itemCreate, rawBody, reply);
+    if (!body) return;
+    try {
+      if ("items" in body) {
+        const itemIds = addRunItemTree(db, section, body.items, body.parentItemId ?? null);
+        touch(run.id);
+        return reply.code(201).send({ itemIds, ...detail(run) });
+      }
+      const item = addRunItem(db, section, body);
+      touch(run.id);
+      return reply.code(201).send({ itemId: item.id, ...detail(run) });
+    } catch (err) {
+      return itemFail(reply, err);
+    }
+  };
+
+  app.post("/api/v1/runs/:id/items", auth, async (req, reply) => {
+    const p = parse(idParams, req.params, reply);
+    if (!p) return;
+    const run = ownRun(req.user!.id, p.id);
+    if (!run) return notFound(reply);
+    if (run.status !== "active") return notActive(reply);
+    return createItems(run, primarySection(db, run), req.body, reply);
+  });
+
+  app.post("/api/v1/run-sections/:id/items", auth, async (req, reply) => {
     const p = parse(idParams, req.params, reply);
     if (!p) return;
     const found = ownSection(req.user!.id, p.id);
     if (!found) return notFound(reply);
     if (found.run.status !== "active") return notActive(reply);
-    deleteSection(db, found.section);
-    touch(found.run.id);
-    return detail(found.run);
-  });
-
-  app.put("/api/v1/run-sections/:id", auth, async (req, reply) => {
-    const p = parse(idParams, req.params, reply);
-    const body = parse(sectionUpdateBody, req.body, reply);
-    if (!p || !body) return;
-    const found = ownSection(req.user!.id, p.id);
-    if (!found) return notFound(reply);
-    if (found.run.status !== "active") return notActive(reply);
-    renameSection(db, found.section, body.title);
-    touch(found.run.id);
-    return detail(found.run);
-  });
-
-  app.post("/api/v1/run-sections/:id/move", auth, async (req, reply) => {
-    const p = parse(idParams, req.params, reply);
-    const body = parse(sectionMoveBody, req.body, reply);
-    if (!p || !body) return;
-    const found = ownSection(req.user!.id, p.id);
-    if (!found) return notFound(reply);
-    if (found.run.status !== "active") return notActive(reply);
-    moveSection(db, found.section, body.position);
-    touch(found.run.id);
-    return detail(found.run);
-  });
-
-  // ---------- Punkte (F-23 bis F-25) ----------
-  app.post("/api/v1/run-sections/:id/items", auth, async (req, reply) => {
-    const p = parse(idParams, req.params, reply);
-    const bulk = req.body && typeof req.body === "object" && "items" in req.body;
-    const body = bulk ? parse(itemBulk, req.body, reply) : parse(itemCreate, req.body, reply);
-    if (!p || !body) return;
-    const found = ownSection(req.user!.id, p.id);
-    if (!found) return notFound(reply);
-    if (found.run.status !== "active") return notActive(reply);
-    try {
-      if ("items" in body) {
-        const itemIds = addRunItemTree(db, found.section, body.items, body.parentItemId ?? null);
-        touch(found.run.id);
-        return reply.code(201).send({ itemIds, ...detail(found.run) });
-      }
-      const item = addRunItem(db, found.section, body);
-      touch(found.run.id);
-      return reply.code(201).send({ itemId: item.id, ...detail(found.run) });
-    } catch (err) {
-      return itemFail(reply, err);
-    }
+    return createItems(found.run, found.section, req.body, reply);
   });
 
   // Abhaken (F-24): speichert sofort mit Zeitstempel, unabhängig von Unterpunkten.

@@ -84,10 +84,10 @@ Alle Routen verlangen Anmeldung; fremde IDs liefern `404` (Mandantentrennung).
 | GET/POST | `/api/v1/tags` | Liste (mit `templateCount`) / anlegen (ohne `color` wird die unterscheidbarste Farbe gewählt, F-18) |
 | PUT/DELETE | `/api/v1/tags/:id` | Umbenennen/Farbe ändern / löschen (nur Zuordnungen) |
 | GET | `/api/v1/templates?search=&tagId=&sort=updated\|title&limit=&offset=` | Liste mit Suche, Tag-Filter, Paginierung |
-| POST | `/api/v1/templates` | Anlegen `{title, description?, tagIds?}` |
+| POST | `/api/v1/templates` | Anlegen `{title, tagIds?, items?}`; `items` ist der ganze Punktebaum. Ein Punkt kann statt `title` ein `refTemplateId` haben (Verweis auf eine andere eigene Vorlage; `422 ref_cycle` bei Kreisen). Antworten enthalten `usedInCount` (in wie vielen Vorlagen sie eingefügt ist) |
 | GET/PUT/DELETE | `/api/v1/templates/:id` | Lesen (inkl. Punktebaum) / ändern / in den Papierkorb |
 | POST | `/api/v1/templates/:id/duplicate` | Duplizieren |
-| POST | `/api/v1/templates/:id/items` | Punkt anlegen `{title, description?, parentItemId?, position?}` |
+| POST | `/api/v1/templates/:id/items` | Punkt anlegen `{title, parentItemId?, position?}` |
 | PUT/DELETE | `/api/v1/template-items/:id` | Punkt ändern / löschen (mit Unterpunkten) |
 | POST | `/api/v1/template-items/:id/move` | Verschieben `{parentItemId \| null, position}` (Zyklen → `422 cycle`, Tiefe > 50 → `422 too_deep`) |
 
@@ -99,16 +99,15 @@ Alle Routen verlangen Anmeldung; fremde IDs liefern `404`. Änderungen an nicht 
 
 | Methode | Pfad | Zweck |
 |---|---|---|
-| GET | `/api/v1/runs?status=active\|archived&search=&limit=&offset=` | Liste mit Fortschritt und Abschnittstiteln |
-| POST | `/api/v1/runs` | Anlegen `{title, templateIds?: []}` – je Vorlage ein Abschnitt (Momentaufnahme), Reihenfolge = Reihenfolge der IDs, Duplikate erlaubt |
+| GET | `/api/v1/runs?status=active\|archived&search=&limit=&offset=` | Liste mit Fortschritt (oberste Ebene) und den Titeln der obersten Punkte (`itemTitles`) |
+| POST | `/api/v1/runs` | Anlegen `{title, templateIds?: []}` – je Vorlage ein Überpunkt mit ihren Punkten darunter (Momentaufnahme, eingefügte Vorlagen aufgelöst), Reihenfolge = Reihenfolge der IDs, Duplikate erlaubt |
 | GET/PUT/DELETE | `/api/v1/runs/:id` | Lesen / umbenennen / in den Papierkorb |
-| POST | `/api/v1/runs/:id/sections` | Vorlagen ergänzen `{templateIds}` oder eigenen leeren Abschnitt `{title}` |
-| DELETE | `/api/v1/run-sections/:id` | Abschnitt entfernen |
-| POST | `/api/v1/run-sections/:id/move` | Abschnitt umsortieren `{position}` |
-| POST | `/api/v1/run-sections/:id/items` | Eigenen Punkt anlegen `{title, description?, parentItemId?, position?}` |
-| PUT | `/api/v1/run-items/:id` | Abhaken `{isChecked}` (mit `checkedAt`), Titel/Beschreibung ändern |
+| POST | `/api/v1/runs/:id/templates` | Vorlagen als Überpunkte ergänzen `{templateIds}` |
+| POST | `/api/v1/runs/:id/items` | Eigenen Punkt anlegen `{title, parentItemId?, position?}` oder einen Baum `{items, parentItemId?}` |
+| POST | `/api/v1/run-sections/:id/items` | Eigenen Punkt anlegen `{title, parentItemId?, position?}` |
+| PUT | `/api/v1/run-items/:id` | Abhaken `{isChecked}` (mit `checkedAt`), Titel ändern |
 | DELETE | `/api/v1/run-items/:id` | Punkt samt Unterpunkten löschen |
-| POST | `/api/v1/run-items/:id/move` | Verschieben `{sectionId?, parentItemId \| null, position}` (auch zwischen Abschnitten) |
+| POST | `/api/v1/run-items/:id/move` | Verschieben `{sectionId?, parentItemId \| null, position}`  |
 
 Noch nicht enthalten: Teilen-Kennzeichnung in der Liste (Schritt 7).
 

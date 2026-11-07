@@ -129,7 +129,8 @@
     "parent_not_found": "Der übergeordnete Punkt existiert nicht mehr. Bitte lade die Seite neu.",
     "invalid_password": "Das Passwort ist falsch.",
     "read_only_link": "Dieser Link erlaubt nur das Ansehen.",
-    "unknown_template": "Mindestens eine Vorlage existiert nicht mehr. Bitte lade die Seite neu."
+    "unknown_template": "Mindestens eine Vorlage existiert nicht mehr. Bitte lade die Seite neu.",
+    "ref_cycle": "Eine Vorlage kann sich nicht selbst enthalten – auch nicht über andere Vorlagen."
   },
   "profile": {
     "account": {
@@ -249,7 +250,7 @@
       "exportAll": "Alle Vorlagen exportieren (JSON)",
       "exportHint": "Enthält alle Vorlagen mit Punkten und Tags, keine Passwörter oder Token. Einzelne Vorlagen und Checklisten exportierst du direkt dort.",
       "importTitle": "Import",
-      "importHint": "JSON (Export-Format) oder CSV mit den Spalten Vorlage, Ebene, Titel, Beschreibung. Es werden nur Vorlagen importiert, immer als neue Einträge; zuerst prüfst du eine Vorschau.",
+      "importHint": "JSON (Export-Format) oder CSV mit den Spalten Vorlage, Ebene, Titel. Es werden nur Vorlagen importiert, immer als neue Einträge; zuerst prüfst du eine Vorschau.",
       "file": "Datei wählen",
       "format": "Format",
       "csvTitle": "Name der Vorlage (nur wenn die CSV keine Spalte „Vorlage“ hat)",
@@ -350,13 +351,14 @@
     "deleted": "„{{title}}“ wurde in den Papierkorb verschoben.",
     "pagination": "Seiten",
     "pageOf": "Seite {{page}} von {{pages}}",
-    "continueToItems": "Weiter zu den Punkten"
+    "continueToItems": "Weiter zu den Punkten",
+    "usedWarning_one": "Diese Vorlage wird in {{count}} Vorlage verwendet. Löschst du sie, verschwinden dort die eingefügten Punkte. Bist du sicher?",
+    "usedWarning_other": "Diese Vorlage wird in {{count}} Vorlagen verwendet. Löschst du sie, verschwinden dort die eingefügten Punkte. Bist du sicher?"
   },
   "editor": {
     "back": "Alle Vorlagen",
     "notFound": "Diese Vorlage gibt es nicht (mehr).",
     "details": "Details",
-    "description": "Beschreibung (optional)",
     "tags": "Tags",
     "noTags": "Noch keine Tags – lege unten den ersten an.",
     "newTag": "Neuer Tag",
@@ -371,7 +373,11 @@
     "creatingHeading": "Neue Vorlage: {{title}}",
     "createHint": "Die Vorlage wird erst mit „Erstellen“ gespeichert. Verlässt du die Seite vorher, wird alles verworfen.",
     "exportCsvHint": "Tabelle mit Semikolon, öffnet direkt in Excel.",
-    "exportJsonHint": "Vollständig, kann wieder importiert werden."
+    "exportJsonHint": "Vollständig, kann wieder importiert werden.",
+    "addTemplate": "Vorlage einfügen",
+    "addTemplateHint": "Die Punkte der gewählten Vorlage erscheinen hier als Unterpunkte und bleiben mit ihr verbunden.",
+    "addTemplateText": "Die gewählten Vorlagen werden am Ende eingefügt. Änderungen an ihnen gelten automatisch auch hier.",
+    "addSelected": "Einfügen"
   },
   "items": {
     "listLabel": "Punkte der Vorlage",
@@ -413,7 +419,11 @@
       "end": "{{title}} abgelegt.",
       "cancel": "Verschieben von {{title}} abgebrochen."
     },
-    "apply": "Übernehmen"
+    "apply": "Übernehmen",
+    "templateBadge": "Vorlage",
+    "missingTemplate": "Vorlage nicht mehr vorhanden",
+    "refCount_one": "{{count}} Punkt",
+    "refCount_other": "{{count}} Punkte"
   },
   "runs": {
     "new": "Neue Checkliste",
@@ -437,7 +447,7 @@
     "count_other": "{{count}} Checklisten",
     "changed": "geändert am {{date}}",
     "archivedOn": "archiviert am {{date}}",
-    "noSections": "Keine Abschnitte",
+    "noSections": "Keine Punkte.",
     "shared": "Geteilt",
     "progressOf": "Fortschritt von {{title}}",
     "reopen": "Wiederherstellen",
@@ -453,9 +463,6 @@
     "addTemplates": "Vorlagen hinzufügen",
     "addTemplatesHint": "Die Vorlagen werden als neue Abschnitte ans Ende gestellt. Spätere Änderungen an der Vorlage wirken sich nicht auf diese Checkliste aus.",
     "addSelected": "Hinzufügen",
-    "addSection": "Eigener Abschnitt",
-    "sectionTitle": "Titel des Abschnitts",
-    "sectionHint": "Für Punkte, die in keiner Vorlage stehen.",
     "share": "Teilen …",
     "finish": "Abschließen …",
     "finishTitle": "Checkliste abschließen",
@@ -468,7 +475,7 @@
     "archivedNotice": "„{{title}}“ wurde archiviert.",
     "completedNotice": "„{{title}}“ wurde abgeschlossen und liegt im Papierkorb.",
     "addPlaceholder": "Neuer Punkt …",
-    "addLabel": "Neuer Punkt in {{title}}",
+    "addLabel": "Neuen Punkt hinzufügen",
     "addChild": "Unterpunkt zu {{title}} hinzufügen",
     "addChildShort": "Unterpunkt hinzufügen",
     "addChildLabel": "Neuer Unterpunkt von {{title}}",
@@ -476,26 +483,17 @@
     "deleteItem": "{{title}} löschen",
     "deleteItemTitle": "Punkt löschen?",
     "deleteItemText": "„{{title}}“ wird samt allen Unterpunkten gelöscht.",
-    "removeSection": "Abschnitt {{title}} entfernen",
-    "removeSectionShort": "Entfernen",
-    "removeSectionTitle": "Abschnitt entfernen?",
-    "removeSectionText": "Der Abschnitt „{{title}}“ wird mit allen Punkten entfernt.",
-    "emptySection": "Noch keine Punkte.",
-    "sectionProgress": "Fortschritt von {{title}}",
     "subProgress": "{{done}} von {{total}} Unterpunkten erledigt",
     "hideDone": "Erledigte ausblenden",
     "allDone": "Alles erledigt!",
     "allDoneText": "Wenn du fertig bist, schließe die Checkliste ab oder archiviere sie.",
-    "allHidden": "Alle Punkte in diesem Abschnitt sind erledigt.",
+    "allHidden": "Alle Punkte sind erledigt.",
     "titleHint": "Wird aus den Vorlagen vorgeschlagen – du kannst ihn ändern.",
     "newTemplate": "Neue Vorlage anlegen",
     "step1": "1. Vorlage anlegen (z. B. Packliste)",
     "step2": "2. Daraus eine Checkliste starten und abhaken",
     "dropHere": "Hier ablegen",
     "sectionEnd": "Ende des Abschnitts",
-    "sectionUp": "Abschnitt {{title}} nach oben",
-    "sectionDown": "Abschnitt {{title}} nach unten",
-    "sectionOrder": "Reihenfolge von {{title}}",
     "a11y": {
       "instructions": "Zum Verschieben Leertaste drücken, mit den Pfeiltasten nach oben oder unten bewegen (auch in andere Abschnitte) und die Leertaste zum Ablegen drücken. Escape bricht ab. Ein- und Ausrücken geht mit den Schaltflächen am Punkt."
     },
@@ -503,7 +501,9 @@
     "exportCsvHint": "Tabelle mit Semikolon, öffnet direkt in Excel.",
     "exportMdHint": "Lesbarer Text mit Kästchen.",
     "exportPrintHint": "Öffnet den Druckdialog des Browsers (auch für PDF).",
-    "print": "Drucken"
+    "print": "Drucken",
+    "itemsLabel": "Punkte",
+    "emptySection": "Noch keine Punkte. Füge unten einen hinzu oder ergänze Vorlagen."
   },
   "share": {
     "title": "Checkliste teilen",

@@ -57,7 +57,7 @@ describe("Werkzeugliste nach Token-Recht (F-64 bis F-66)", () => {
     const client = await connect(await createToken(user, "write"));
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(mcpToolNames(true).sort());
-    expect(tools).toHaveLength(23);
+    expect(tools).toHaveLength(20);
     for (const t of tools) {
       expect(t.description, t.name).toBeTruthy();
       expect(t.inputSchema.type).toBe("object");
@@ -88,7 +88,7 @@ describe("Vorlagen lesen, erstellen, bearbeiten (F-65)", () => {
 
     const tag = (await call(c, "create_tag", { name: "Reisen" })).data.tag;
     expect(tag.color).toMatch(/^#[0-9a-f]{6}$/); // automatische Farbe
-    const tpl = (await call(c, "create_template", { title: "Tagesausflug", description: "Für unterwegs", tagIds: [tag.id] })).data.template;
+    const tpl = (await call(c, "create_template", { title: "Tagesausflug", tagIds: [tag.id] })).data.template;
     const rucksack = (await call(c, "add_template_item", { templateId: tpl.id, title: "Rucksack" })).data.itemId;
     await call(c, "add_template_item", { templateId: tpl.id, title: "Sonnencreme", parentItemId: rucksack });
     await call(c, "add_template_item", { templateId: tpl.id, title: "Route prüfen" });
@@ -98,12 +98,11 @@ describe("Vorlagen lesen, erstellen, bearbeiten (F-65)", () => {
     expect(got.items.map((i: { title: string; children: { title: string }[] }) => [i.title, i.children.map((x) => x.title)])).toEqual([["Rucksack", ["Sonnencreme"]], ["Route prüfen", []]]);
 
     await call(c, "update_template", { templateId: tpl.id, title: "Ausflug", tagIds: [] });
-    await call(c, "update_template_item", { itemId: rucksack, title: "Rucksack packen", description: "Wetterfest" });
+    await call(c, "update_template_item", { itemId: rucksack, title: "Rucksack packen" });
     await call(c, "move_template_item", { itemId: got.items[1].id, parentItemId: null, position: 0 });
     got = (await call(c, "get_template", { templateId: tpl.id })).data.template;
-    expect(got).toMatchObject({ title: "Ausflug", description: "Für unterwegs", tags: [] });
+    expect(got).toMatchObject({ title: "Ausflug", tags: [] });
     expect(got.items.map((i: { title: string }) => i.title)).toEqual(["Route prüfen", "Rucksack packen"]);
-    expect(got.items[1].description).toBe("Wetterfest");
 
     const list = (await call(c, "list_templates", { search: "ausf", sort: "title", limit: 10 })).data;
     expect(list.total).toBe(1);
@@ -123,7 +122,7 @@ describe("Vorlagen lesen, erstellen, bearbeiten (F-65)", () => {
 });
 
 describe("Durchführungen lesen, erstellen, bearbeiten (F-65)", () => {
-  it("startet aus mehreren Vorlagen, ergänzt Vorlagen/Abschnitte/Punkte, hakt ab und verschiebt", async () => {
+  it("startet aus mehreren Vorlagen (als Überpunkte), ergänzt Vorlagen/Punkte, hakt ab und verschiebt", async () => {
     const user = await newUser(app, "anna@example.org", "Anna");
     const c = await connect(await createToken(user));
     const mk = async (title: string, items: string[]) => {
@@ -135,33 +134,32 @@ describe("Durchführungen lesen, erstellen, bearbeiten (F-65)", () => {
 
     const created = (await call(c, "create_run", { title: "Ausflug Füssen", templateIds: [tag, therme] })).data;
     const run = created.run;
-    expect(created.sections.map((s: { title: string }) => s.title)).toEqual(["Tagesausflug", "Therme"]);
-    expect(run.progress).toEqual({ done: 0, total: 3 });
+    expect(created.items.map((i: { title: string }) => i.title)).toEqual(["Tagesausflug", "Therme"]);
+    expect(run.progress).toEqual({ done: 0, total: 2 }); // zählt nur die oberste Ebene
     expect(created.run.sections).toBeUndefined(); // schlanke Antwort: keine Punkte
 
     let info: any = (await call(c, "add_templates_to_run", { runId: run.id, templateIds: [wandern] })).data;
-    expect(info.sections.map((s: { title: string }) => s.title)).toEqual(["Tagesausflug", "Therme", "Wandern"]);
-    info = (await call(c, "add_run_section", { runId: run.id, title: "Eigene Punkte" })).data;
-    const own = info.sections[3];
-    const added = (await call(c, "add_run_item", { sectionId: own.id, title: "Kuchen mitbringen" })).data;
-    expect(added.item).toMatchObject({ title: "Kuchen mitbringen", sectionId: own.id, parentItemId: null, isChecked: false });
-    expect(added.progress).toEqual({ done: 0, total: 6 });
+    expect(info.items.map((i: { title: string }) => i.title)).toEqual(["Tagesausflug", "Therme", "Wandern"]);
+    const added = (await call(c, "add_run_item", { runId: run.id, title: "Kuchen mitbringen" })).data;
+    expect(added.item).toMatchObject({ title: "Kuchen mitbringen", parentItemId: null, isChecked: false });
+    expect(added.progress).toEqual({ done: 0, total: 4 });
 
     const full = async () => (await call(c, "get_run", { runId: run.id })).data.run;
-    const schuhe = (await full()).sections[2].items[0];
+    const schuhe = (await full()).sections[0].items[2].children[0];
     const checked = (await call(c, "update_run_item", { itemId: schuhe.id, isChecked: true })).data;
-    expect(checked.progress).toEqual({ done: 1, total: 6 });
     expect(checked.item).toMatchObject({ title: "Schuhe", isChecked: true });
-    expect((await full()).sections[2].items[0].checkedAt).toBeGreaterThan(0);
+    expect(checked.progress).toEqual({ done: 0, total: 4 });
+    expect((await full()).sections[0].items[2].childProgress).toEqual({ done: 1, total: 2 });
+    const karte = (await full()).sections[0].items[2].children[1];
+    await call(c, "update_run_item", { itemId: karte.id, isChecked: true });
+    expect((await call(c, "get_run", { runId: run.id })).data.run.progress).toEqual({ done: 1, total: 4 }); // Wandern automatisch erledigt
 
-    const moved = (await call(c, "move_run_item", { itemId: added.itemId, sectionId: (await full()).sections[0].id, parentItemId: null, position: 0 })).data;
+    const moved = (await call(c, "move_run_item", { itemId: added.itemId, parentItemId: null, position: 0 })).data;
     expect(moved.item).toMatchObject({ title: "Kuchen mitbringen", position: 0 });
-    const after: any = await full();
-    expect(after.sections[0].items[0].title).toBe("Kuchen mitbringen");
-    expect(after.sections[3].items).toEqual([]);
+    expect((await full()).sections[0].items[0].title).toBe("Kuchen mitbringen");
 
     const list = (await call(c, "list_runs", { search: "füssen" })).data;
-    expect(list.runs[0]).toMatchObject({ title: "Ausflug Füssen", share: null, progress: { done: 1, total: 6 } });
+    expect(list.runs[0]).toMatchObject({ title: "Ausflug Füssen", share: null, progress: { done: 1, total: 4 } });
     expect((await call(c, "get_run", { runId: run.id })).data).toEqual((await user.get(`/api/v1/runs/${run.id}`)).json());
   });
 
@@ -171,7 +169,7 @@ describe("Durchführungen lesen, erstellen, bearbeiten (F-65)", () => {
     const t = (await call(c, "create_template", { title: "V" })).data.template.id;
     await call(c, "add_template_item", { templateId: t, title: "a" });
     const run = (await call(c, "create_run", { title: "R", templateIds: [t] })).data.run;
-    const itemId = (await call(c, "get_run", { runId: run.id })).data.run.sections[0].items[0].id;
+    const itemId = (await call(c, "get_run", { runId: run.id })).data.run.sections[0].items[0].children[0].id;
     await user.post(`/api/v1/runs/${run.id}/archive`);
     const res = await call(c, "update_run_item", { itemId, isChecked: true });
     expect(res.isError).toBe(true);
@@ -315,13 +313,13 @@ describe("Rate-Limit und Protokollierung (F-66, F-37)", () => {
     const user = await newUser(app, "anna@example.org", "Anna");
     const token = await createToken(user);
     const c = await connect(token);
-    await call(c, "create_template", { title: "Streng geheimer Titel", description: "Vertrauliche Beschreibung" });
+    await call(c, "create_template", { title: "Streng geheimer Titel" });
     await call(c, "get_template", { templateId: "00000000-0000-4000-8000-000000000000" });
     const log = logLines.join("\n");
     expect(log).toContain('"event":"mcp_tool_call"');
     expect(log).toContain('"tool":"create_template"');
     expect(log).toContain('"ok":false'); // der fehlgeschlagene Aufruf
-    for (const secret of [token, "Streng geheimer Titel", "Vertrauliche Beschreibung", GOOD_PASSWORD]) expect(log).not.toContain(secret);
+    for (const secret of [token, "Streng geheimer Titel", GOOD_PASSWORD]) expect(log).not.toContain(secret);
     const toolCalls = logLines.filter((l) => l.includes("mcp_tool_call"));
     expect(toolCalls).toHaveLength(2);
     expect(logLines.filter((l) => l.includes('"event":"api_token_used"'))).toHaveLength(1); // nur der äußere Aufruf, nicht die internen
@@ -350,7 +348,7 @@ describe("Schlanke Antworten, Massenaufrufe, Umbenennen, Tags (Erweiterung)", ()
     const user = await newUser(app, "anna@example.org", "Anna");
     const c = await connect(await createToken(user));
     const created = (await call(c, "create_template", {
-      title: "Camping", items: [{ title: "Zelt", children: [{ title: "Heringe" }, { title: "Gestänge", description: "2 Teile" }] }, { title: "Schlafsack" }],
+      title: "Camping", items: [{ title: "Zelt", children: [{ title: "Heringe" }, { title: "Gestänge" }] }, { title: "Schlafsack" }],
     })).data;
     expect(created.template).toMatchObject({ title: "Camping", itemCount: 4 });
     expect(created.template.items).toBeUndefined(); // schlank
@@ -378,29 +376,35 @@ describe("Schlanke Antworten, Massenaufrufe, Umbenennen, Tags (Erweiterung)", ()
     expect(mv.item).toMatchObject({ parentItemId: null, position: 0 });
   });
 
-  it("add_run_items hängt einen ganzen Baum an; Checkliste und Abschnitte lassen sich umbenennen und umsortieren", async () => {
+  it("add_run_items hängt einen ganzen Baum an; Checkliste lässt sich umbenennen", async () => {
     const user = await newUser(app, "anna@example.org", "Anna");
     const c = await connect(await createToken(user));
     const run = (await call(c, "create_run", { title: "R" })).data.run;
-    const s1 = (await call(c, "add_run_section", { runId: run.id, title: "Eins" })).data.sections[0].id;
-    const s2 = (await call(c, "add_run_section", { runId: run.id, title: "Zwei" })).data.sections[1].id;
 
-    const bulk = (await call(c, "add_run_items", { sectionId: s1, items: [{ title: "A", children: [{ title: "A1" }, { title: "A2" }] }, { title: "B" }] })).data;
+    const bulk = (await call(c, "add_run_items", { runId: run.id, items: [{ title: "A", children: [{ title: "A1" }, { title: "A2" }] }, { title: "B" }] })).data;
     expect(bulk.itemIds).toHaveLength(2);
-    expect(bulk.progress).toEqual({ done: 0, total: 4 });
-    const under = (await call(c, "add_run_items", { sectionId: s1, parentItemId: bulk.itemIds[1], items: [{ title: "B1" }] })).data;
-    expect(under.progress.total).toBe(5);
-    let full = (await call(c, "get_run", { runId: run.id })).data.run;
+    expect(bulk.progress).toEqual({ done: 0, total: 2 });
+    const under = (await call(c, "add_run_items", { runId: run.id, parentItemId: bulk.itemIds[1], items: [{ title: "B1" }] })).data;
+    expect(under.progress.total).toBe(2);
+    const full = (await call(c, "get_run", { runId: run.id })).data.run;
     expect(full.sections[0].items.map((i: { title: string; children: unknown[] }) => [i.title, i.children.length])).toEqual([["A", 2], ["B", 1]]);
 
     expect((await call(c, "update_run", { runId: run.id, title: "Neuer Name" })).data.run.title).toBe("Neuer Name");
-    expect((await call(c, "update_run_section", { sectionId: s2, title: "Zwei umbenannt" })).data.sections.map((s: { title: string }) => s.title)).toEqual(["Eins", "Zwei umbenannt"]);
-    const order = (await call(c, "move_run_section", { sectionId: s2, position: 0 })).data.sections.map((s: { title: string }) => s.title);
-    expect(order).toEqual(["Zwei umbenannt", "Eins"]);
 
     await user.post(`/api/v1/runs/${run.id}/archive`);
-    expect((await call(c, "add_run_items", { sectionId: s1, items: [{ title: "X" }] })).text).toContain("run_not_active");
-    expect((await call(c, "update_run_section", { sectionId: s1, title: "X" })).text).toContain("run_not_active");
+    expect((await call(c, "add_run_items", { runId: run.id, items: [{ title: "X" }] })).text).toContain("run_not_active");
+  });
+
+  it("Vorlage in Vorlage: Verweise lassen sich anlegen, Kreise werden abgelehnt", async () => {
+    const user = await newUser(app, "anna@example.org", "Anna");
+    const c = await connect(await createToken(user));
+    const hyg = (await call(c, "create_template", { title: "Hygiene", items: [{ title: "Zahnpasta" }] })).data.template.id as string;
+    const nacht = (await call(c, "create_template", { title: "Übernachten", items: [{ title: "Schlafhose" }, { refTemplateId: hyg }] })).data.template.id as string;
+    const tree = (await call(c, "get_template", { templateId: nacht })).data.template.items;
+    expect(tree[1]).toMatchObject({ title: "Hygiene", ref: { templateId: hyg, title: "Hygiene", itemCount: 1, missing: false }, children: [] });
+    const cyc = await call(c, "update_template", { templateId: hyg, items: [{ refTemplateId: nacht }] });
+    expect(cyc.isError).toBe(true);
+    expect(cyc.text).toContain("ref_cycle");
   });
 
   it("Tags lassen sich vollständig verwalten: anlegen, ändern, zuordnen, löschen", async () => {
@@ -429,6 +433,6 @@ describe("Schlanke Antworten, Massenaufrufe, Umbenennen, Tags (Erweiterung)", ()
   it("Lese-Token sehen die neuen Schreibwerkzeuge nicht", async () => {
     const user = await newUser(app, "anna@example.org", "Anna");
     const names = (await (await connect(await createToken(user, "read"))).listTools()).tools.map((t) => t.name);
-    for (const n of ["add_run_items", "update_run", "update_run_section", "move_run_section", "update_tag", "delete_tag"]) expect(names).not.toContain(n);
+    for (const n of ["add_run_items", "update_run", "update_tag", "delete_tag"]) expect(names).not.toContain(n);
   });
 });

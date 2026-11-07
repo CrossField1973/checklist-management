@@ -15,16 +15,16 @@ async function violations() {
 }
 const expectClean = async () => expect(await violations()).toEqual([]);
 
-const tree = [{ id: "i1", title: "Rucksack", description: "Wetterfest", position: 0, children: [{ id: "i2", title: "Regenjacke", description: null, position: 0, children: [] }] }];
-const runItem = (id: string, title: string, checked = false, children: any[] = []) => ({ id, title, description: null, position: 0, isChecked: checked, checkedAt: null, childProgress: { done: 0, total: children.length }, children });
-const run = { id: "r1", title: "Ausflug", status: "active", createdAt: 1, updatedAt: 1, archivedAt: null, share: { access: "password", permission: "edit" }, progress: { done: 1, total: 3 },
-  sections: [{ id: "s1", title: "Tagesausflug", position: 0, sourceTemplateId: null, progress: { done: 1, total: 3 }, items: [runItem("a", "Rucksack", true), runItem("b", "Proviant", false, [runItem("c", "Brot")])] }] };
+const tree = [{ id: "i1", title: "Rucksack", position: 0, children: [{ id: "i2", title: "Regenjacke", position: 0, children: [] }] }];
+const runItem = (id: string, title: string, checked = false, children: any[] = []) => ({ id, title, position: 0, isChecked: checked, checkedAt: null, childProgress: { done: 0, total: children.length }, children });
+const run = { id: "r1", title: "Ausflug", status: "active", createdAt: 1, updatedAt: 1, archivedAt: null, share: { access: "password", permission: "edit" }, progress: { done: 1, total: 2 },
+  sections: [{ id: "s1", title: "Ausflug", position: 0, sourceTemplateId: null, progress: { done: 1, total: 2 }, items: [runItem("a", "Rucksack", true), runItem("b", "Proviant", false, [runItem("c", "Brot")])] }] };
 const tags = [{ id: "g1", name: "Reisen", color: "#2563eb", textColor: "#ffffff", templateCount: 1 }];
-const tpl = { id: "t1", title: "Tagesausflug", description: "Für unterwegs", tags, itemCount: 2, createdAt: 1, updatedAt: 1 };
+const tpl = { id: "t1", title: "Tagesausflug", tags, itemCount: 2, createdAt: 1, updatedAt: 1 };
 
 function api() {
   const a = mockApi();
-  a.on("GET /runs", () => ({ body: { total: 1, runs: [{ ...run, sectionTitles: ["Tagesausflug"] }] } }));
+  a.on("GET /runs", () => ({ body: { total: 1, runs: [{ ...run, itemTitles: ["Tagesausflug"] }] } }));
   a.on("GET /runs/r1", () => ({ body: { run } }));
   a.on("GET /runs/r1/share", () => ({ body: { share: null } }));
   a.on("GET /templates", () => ({ body: { total: 1, templates: [tpl] } }));
@@ -51,13 +51,13 @@ describe("Barrierefreiheit (axe-core, WCAG 2.2 AA)", () => {
     ["Anmeldung", "/login", "Anmelden"],
     ["Registrierung", "/register", "Registrieren"],
     ["Startseite", "/", "Ausflug"],
-    ["Checkliste", "/runs/r1", "Tagesausflug"],
+    ["Checkliste", "/runs/r1", "Rucksack"],
     ["Archiv", "/archive", "Archiv"],
     ["Vorlagenliste", "/templates", "Tagesausflug"],
     ["Vorlageneditor", "/templates/t1", "Regenjacke"],
     ["Papierkorb", "/trash", "Ausflug"],
     ["Profil", "/profile", "Profil"],
-    ["Öffentliche Ansicht", "/s/tok1234567890", "Tagesausflug"],
+    ["Öffentliche Ansicht", "/s/tok1234567890", "Rucksack"],
   ])("%s hat keine Verstöße", async (_name, path, waitFor_) => {
     const a = api();
     if (path === "/login" || path === "/register" || path.startsWith("/s/")) a.setUser(null);

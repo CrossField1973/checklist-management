@@ -119,10 +119,8 @@ const OPERATIONS: Op[] = [
   op("post", "/api/v1/runs/{id}/complete", "Durchführungen", "any", "Abschließen (= in den Papierkorb)", { status: 204 }),
   op("post", "/api/v1/runs/{id}/archive", "Durchführungen", "any", "Archivieren (widerruft Freigabelinks)", { errors: { 409: "Nicht aktiv" } }),
   op("post", "/api/v1/runs/{id}/reopen", "Durchführungen", "any", "Aus dem Archiv wieder öffnen", { errors: { 409: "Nicht archiviert (`run_not_archived`)" } }),
-  op("post", "/api/v1/runs/{id}/sections", "Durchführungen", "any", "Vorlagen ergänzen oder eigenen Abschnitt anlegen", { status: 201, body: runs.addSectionsBody, errors: { 409: "Nicht aktiv", 422: "Unbekannte Vorlage" } }),
-  op("delete", "/api/v1/run-sections/{id}", "Durchführungen", "any", "Abschnitt entfernen", { errors: { 409: "Nicht aktiv" } }),
-  op("put", "/api/v1/run-sections/{id}", "Durchführungen", "any", "Abschnitt umbenennen", { body: runs.sectionUpdateBody, errors: { 409: "Nicht aktiv" } }),
-  op("post", "/api/v1/run-sections/{id}/move", "Durchführungen", "any", "Abschnitt umsortieren", { body: runs.sectionMoveBody, errors: { 409: "Nicht aktiv" } }),
+  op("post", "/api/v1/runs/{id}/templates", "Durchführungen", "any", "Vorlagen ergänzen (jede wird ein Überpunkt mit ihren Punkten darunter)", { status: 201, body: runs.addTemplatesBody, errors: { 409: "Nicht aktiv", 422: "Unbekannte Vorlage" } }),
+  op("post", "/api/v1/runs/{id}/items", "Durchführungen", "any", "Eigenen Punkt anlegen (oder mit `items` einen ganzen Punktebaum auf einmal)", { status: 201, body: runs.itemCreate.or(runs.itemBulkDoc), errors: { 409: "Nicht aktiv", 422: "`too_deep`" } }),
   op("post", "/api/v1/run-sections/{id}/items", "Durchführungen", "any", "Eigenen Punkt anlegen (oder mit `items` einen ganzen Punktebaum auf einmal)", { status: 201, body: runs.itemCreate.or(runs.itemBulkDoc), errors: { 409: "Nicht aktiv", 422: "`too_deep`" } }),
   op("put", "/api/v1/run-items/{id}", "Durchführungen", "any", "Abhaken / Punkt ändern", { body: runs.itemUpdate, errors: { 409: "Nicht aktiv" } }),
   op("delete", "/api/v1/run-items/{id}", "Durchführungen", "any", "Punkt samt Unterpunkten löschen", { errors: { 409: "Nicht aktiv" } }),
@@ -136,14 +134,14 @@ const OPERATIONS: Op[] = [
 
   // ---------- Import und Export ----------
   op("get", "/api/v1/export", "Import/Export", "any", "Alle eigenen Daten exportieren (JSON-Download)", { query: ie.allExportQuery, description: "Tags, Vorlagen (mit Unterpunkten) und Durchführungen ohne Papierkorb. Format zum Wiedereinlesen mit `POST /import`; enthält keine Geheimnisse, Freigabelinks oder IDs." }),
-  op("get", "/api/v1/templates/{id}/export", "Import/Export", "any", "Vorlage exportieren (JSON, CSV oder Markdown)", { query: ie.exportQuery, description: "CSV-Spalten: Vorlage, Ebene, Titel, Beschreibung (UTF-8 mit BOM, Zellen mit `=`,`+`,`-`,`@` am Anfang werden mit `'` geschützt)." }),
-  op("get", "/api/v1/runs/{id}/export", "Import/Export", "any", "Durchführung exportieren (JSON, CSV oder Markdown)", { query: ie.exportQuery, description: "CSV-Spalten: Abschnitt, Ebene, Titel, Beschreibung, Erledigt, Erledigt am. Markdown mit Kontrollkästchen `- [x]`." }),
+  op("get", "/api/v1/templates/{id}/export", "Import/Export", "any", "Vorlage exportieren (JSON, CSV oder Markdown)", { query: ie.exportQuery, description: "CSV-Spalten: Vorlage, Ebene, Titel (UTF-8 mit BOM, Zellen mit `=`,`+`,`-`,`@` am Anfang werden mit `'` geschützt)." }),
+  op("get", "/api/v1/runs/{id}/export", "Import/Export", "any", "Durchführung exportieren (JSON, CSV oder Markdown)", { query: ie.exportQuery, description: "CSV-Spalten: Abschnitt, Ebene, Titel, Erledigt, Erledigt am. Markdown mit Kontrollkästchen `- [x]`." }),
   op("post", "/api/v1/import", "Import/Export", "any", "Importieren (JSON oder CSV), optional nur prüfen", {
     status: 201, body: ie.importBody,
     description: [
       "Legt **immer neue** Datensätze an (nichts wird überschrieben oder zusammengeführt); alles oder nichts.",
       "Mit `dryRun: true` wird nur geprüft: Antwort `{valid, issues, warnings, counts, preview}` mit Fehlern je Zeile bzw. Pfad (Status 200).",
-      "**JSON:** Export-Format (Round-Trip). **CSV:** Spalten Vorlage, Ebene, Titel, Beschreibung (Trennzeichen `,` `;` oder Tab wird erkannt); Ebene 1 = oberster Punkt, 2 = Unterpunkt …; ohne Spalte Vorlage mit `title`.",
+      "**JSON:** Export-Format (Round-Trip). **CSV:** Spalten Vorlage, Ebene, Titel (Trennzeichen `,` `;` oder Tab wird erkannt); Ebene 1 = oberster Punkt, 2 = Unterpunkt …; ohne Spalte Vorlage mit `title`.",
       "Grenzen: 2000 Vorlagen, 2000 Durchführungen, 50 000 Punkte, 12 MB.",
     ].join("\n\n"),
     errors: { 413: "Anfrage zu groß", 422: "Import ungültig (`import_invalid`, `issues` nennt Zeilen/Pfade)" },

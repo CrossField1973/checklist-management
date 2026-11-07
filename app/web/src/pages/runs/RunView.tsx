@@ -1,23 +1,20 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, downloadFile } from "../../api/client";
-import type { RunDetail, RunItemNode, RunSection } from "../../api/types";
-import { Alert, Button, Dialog, Spinner, TextInput, useErrorText } from "../../components/ui";
+import type { RunDetail, RunItemNode } from "../../api/types";
+import { Alert, Button, Dialog, Spinner, useErrorText } from "../../components/ui";
 import { useAuth } from "../../auth/AuthProvider";
 import { ExportDialog } from "../../components/ExportDialog";
 import { DownloadIcon } from "../../components/icons";
 import { newId } from "../../lib/id";
-import { moveBetweenSections, withProgress } from "../../lib/tree";
+import { applyCheck, moveBetweenSections, withProgress } from "../../lib/tree";
 import { enqueue } from "../../offline/queue";
 import { ProgressBar, RunBoard, type BoardActions } from "./RunBoard";
 import { ShareBadgeView } from "./RunsPage";
 import { ShareDialog } from "./ShareDialog";
 import { TemplatePicker } from "./TemplatePicker";
-
-const mapItems = (items: RunItemNode[], id: string, checked: boolean): RunItemNode[] =>
-  items.map((i) => ({ ...i, isChecked: i.id === id ? checked : i.isChecked, children: mapItems(i.children, id, checked) }));
 
 /** Fügt einen noch nicht übertragenen Punkt in den lokalen Zwischenspeicher ein. */
 const withTempItem = (run: RunDetail, sectionId: string, parentItemId: string | null, node: RunItemNode): RunDetail => {
@@ -30,7 +27,7 @@ const withTempItem = (run: RunDetail, sectionId: string, parentItemId: string | 
 };
 const isOffline = (err: unknown) => err instanceof ApiError && err.status === 0;
 
-type Dlg = "share" | "templates" | "section" | "finish" | "export" | null;
+type Dlg = "share" | "templates" | "finish" | "export" | null;
 
 /** F-23 bis F-30: Durchführung ansehen, abhaken, ergänzen, teilen, abschließen oder archivieren. */
 export default function RunView() {
@@ -46,7 +43,6 @@ export default function RunView() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
-  const [sectionTitle, setSectionTitle] = useState("");
   const hideDone = useAuth().user?.hideDone ?? false; // Einstellung im Profil (Darstellung)
 
   const run = q.data;
@@ -68,17 +64,16 @@ export default function RunView() {
 
   const actions: BoardActions = {
     onCheck: async (item, checked) => {
-      qc.setQueryData<RunDetail>(key, (old) => old && { ...old, ...withProgress(old.sections.map((s) => ({ ...s, items: mapItems(s.items, item.id, checked) }))) });
+      qc.setQueryData<RunDetail>(key, (old) => old && { ...old, ...withProgress(old.sections.map((s) => ({ ...s, items: applyCheck(s.items, item.id, checked) }))) });
       await call(() => api.put(`/run-items/${item.id}`, { isChecked: checked }), () => enqueue({ kind: "check", runId: id, label: item.title, itemId: item.id, checked }));
     },
     onAdd: (sectionId, title, parentItemId) => call(() => api.post(`/run-sections/${sectionId}/items`, { title, parentItemId }), () => {
       const tempId = `tmp-${newId()}`;
       enqueue({ kind: "add", runId: id, label: title, sectionId, parentItemId, title, tempId });
-      const node: RunItemNode = { id: tempId, title, description: null, position: 0, isChecked: false, checkedAt: null, childProgress: { done: 0, total: 0 }, children: [] };
+      const node: RunItemNode = { id: tempId, title, position: 0, isChecked: false, checkedAt: null, childProgress: { done: 0, total: 0 }, children: [] };
       qc.setQueryData<RunDetail>(key, (old) => old && withTempItem(old, sectionId, parentItemId, node));
     }),
     onDelete: (item) => call(() => api.del(`/run-items/${item.id}`)),
-    onDeleteSection: (s: RunSection) => call(() => api.del(`/run-sections/${s.id}`)),
     // Verschieben: sofort lokal zeigen, die Antwort des Servers (inkl. Fortschritt) ersetzt den Zwischenstand
     onMoveItem: async (item, target) => {
       qc.setQueryData<RunDetail>(key, (old) => {
@@ -87,15 +82,6 @@ export default function RunView() {
       });
       await call(() => api.post(`/run-items/${item.id}/move`, target));
     },
-    onMoveSection: async (section, position) => {
-      qc.setQueryData<RunDetail>(key, (old) => {
-        if (!old) return old;
-        const rest = old.sections.filter((s) => s.id !== section.id);
-        rest.splice(Math.min(Math.max(position, 0), rest.length), 0, section);
-        return { ...old, sections: rest.map((s, i) => ({ ...s, position: i })) };
-      });
-      await call(() => api.post(`/run-sections/${section.id}/move`, { position }));
-    },
   };
 
   const download = (format: string, delimiter?: string, name = "checkliste") =>
@@ -103,14 +89,8 @@ export default function RunView() {
 
   async function addTemplates() {
     setBusy(true);
-    await call(() => api.post(`/runs/${id}/sections`, { templateIds: picked }));
+    await call(() => api.post(`/runs/${id}/templates`, { templateIds: picked }));
     setBusy(false); setDlg(null); setPicked([]);
-  }
-  async function addSection(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    await call(() => api.post(`/runs/${id}/sections`, { title: sectionTitle.trim() }));
-    setBusy(false); setDlg(null); setSectionTitle("");
   }
   async function finish(kind: "complete" | "archive") {
     setBusy(true);
@@ -155,7 +135,6 @@ export default function RunView() {
         {r.status === "active" ? (
           <>
             <Button onClick={() => setDlg("templates")}>＋ {t("runs.addTemplates")}</Button>
-            <Button onClick={() => setDlg("section")}>＋ {t("runs.addSection")}</Button>
             <Button onClick={() => setDlg("share")}>{t("runs.share")}</Button>
             <Button onClick={() => setDlg("export")}>{t("editor.export")} <DownloadIcon /></Button>
             <Button variant="primary" onClick={() => setDlg("finish")}>{t("runs.finish")}</Button>
@@ -192,27 +171,17 @@ export default function RunView() {
         <TemplatePicker enabled={dlg === "templates"} selected={picked} onChange={setPicked} />
       </Dialog>
 
-      <Dialog open={dlg === "section"} onClose={() => setDlg(null)} title={t("runs.addSection")}>
-        <form onSubmit={addSection} noValidate>
-          <TextInput label={t("runs.sectionTitle")} hint={t("runs.sectionHint")} autoFocus required maxLength={200} value={sectionTitle} onChange={(e) => setSectionTitle(e.target.value)} />
-          <div className="mt-5 flex justify-end gap-2">
-            <Button onClick={() => setDlg(null)}>{t("common.cancel")}</Button>
-            <Button type="submit" variant="primary" disabled={busy || !sectionTitle.trim()}>{t("common.add")}</Button>
-          </div>
-        </form>
-      </Dialog>
-
       <Dialog open={dlg === "finish"} onClose={() => setDlg(null)} title={t("runs.finishTitle")} footer={<Button onClick={() => setDlg(null)}>{t("common.cancel")}</Button>}>
         <div className="grid gap-4">
           <div>
             <p className="m-0 font-semibold">{t("runs.completeHeading")}</p>
             <p className="hint mt-1">{t("runs.completeText")}</p>
-            <Button disabled={busy} onClick={() => void finish("complete")}>{t("runs.complete")}</Button>
+            <Button variant="primary" disabled={busy} onClick={() => void finish("complete")}>{t("runs.complete")}</Button>
           </div>
           <div>
             <p className="m-0 font-semibold">{t("runs.archiveHeading")}</p>
             <p className="hint mt-1">{t("runs.archiveText")}</p>
-            <Button variant="primary" disabled={busy} onClick={() => void finish("archive")}>{t("runs.archive")}</Button>
+            <Button disabled={busy} onClick={() => void finish("archive")}>{t("runs.archive")}</Button>
           </div>
         </div>
       </Dialog>

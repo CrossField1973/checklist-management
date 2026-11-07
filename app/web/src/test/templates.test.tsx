@@ -6,11 +6,11 @@ import { apiError, mockApi, renderApp } from "./harness";
 
 const TAG_A: Tag = { id: "g1", name: "Reisen", color: "#2563eb", textColor: "#ffffff", templateCount: 2 };
 const TAG_B: Tag = { id: "g2", name: "Outdoor", color: "#facc15", textColor: "#000000", templateCount: 1 };
-const summary = (over: Partial<TemplateSummary> = {}): TemplateSummary => ({ id: "t1", title: "Tagesausflug", description: null, tags: [TAG_A], itemCount: 3, createdAt: 1, updatedAt: 1_700_000_000_000, ...over });
-const n = (id: string, title: string, children: ItemNode[] = [], description: string | null = null, position = 0): ItemNode => ({ id, title, description, position, children });
+const summary = (over: Partial<TemplateSummary> = {}): TemplateSummary => ({ id: "t1", title: "Tagesausflug", tags: [TAG_A], itemCount: 3, createdAt: 1, updatedAt: 1_700_000_000_000, ...over });
+const n = (id: string, title: string, children: ItemNode[] = [], position = 0): ItemNode => ({ id, title, position, children });
 /** Rucksack[Sonnencreme, Regenjacke], Route prüfen */
-const tree = (): ItemNode[] => [n("i1", "Rucksack", [n("i11", "Sonnencreme", [], null, 0), n("i12", "Regenjacke", [], null, 1)], "Wetterfest", 0), n("i2", "Route prüfen", [], null, 1)];
-const detail = (over: Partial<TemplateDetail> = {}): TemplateDetail => ({ ...summary(), description: "Für unterwegs", items: tree(), ...over });
+const tree = (): ItemNode[] => [n("i1", "Rucksack", [n("i11", "Sonnencreme", [], 0), n("i12", "Regenjacke", [], 1)], 0), n("i2", "Route prüfen", [], 1)];
+const detail = (over: Partial<TemplateDetail> = {}): TemplateDetail => ({ ...summary(), items: tree(), ...over });
 
 /** Fake-API mit Vorlagenliste, Tags und einer Vorlage im Editor */
 function templatesApi(opts: { templates?: TemplateSummary[]; total?: number; tags?: Tag[] } = {}) {
@@ -87,17 +87,11 @@ describe("Vorlagenliste (F-11)", () => {
     expect(await screen.findByText("Keine Vorlage gefunden.")).toBeInTheDocument();
   });
 
-  it("zeigt Duplizieren und Löschen als Symbole (mit Namen für Screenreader)", async () => {
+  it("zeigt in der Liste weder Duplizieren noch Löschen", async () => {
     templatesApi();
     renderApp("/templates");
-    const li = (await screen.findByText("Tagesausflug")).closest("li")!;
-    expect(within(li).queryByRole("link", { name: /bearbeiten/ })).not.toBeInTheDocument(); // Bearbeiten = Klick auf die Zeile
-    for (const name of ["Vorlage Tagesausflug duplizieren", "Vorlage Tagesausflug löschen"]) {
-      const el = within(li).getByRole("button", { name });
-      expect(el.textContent).toBe(""); // nur Symbol, kein Text
-      expect(el.querySelector("svg")).not.toBeNull();
-    }
-    expect(screen.queryByRole("button", { name: "Tags verwalten" })).not.toBeInTheDocument();
+    await screen.findByText("Tagesausflug");
+    expect(screen.queryByRole("button", { name: /duplizieren|löschen/i })).not.toBeInTheDocument();
   });
 
   it("öffnet die Vorlage bei Klick irgendwo in die Zeile", async () => {
@@ -106,38 +100,6 @@ describe("Vorlagenliste (F-11)", () => {
     await ui.click((await screen.findByText(/3 Punkte/)).closest("li")!);
     expect(await screen.findByRole("heading", { name: "Tagesausflug", level: 1 })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeInTheDocument();
-  });
-
-  it("dupliziert und öffnet die Kopie mit Hinweis", async () => {
-    const api = templatesApi();
-    api.on("POST /templates/t1/duplicate", () => ({ status: 201, body: { template: detail({ id: "t9", title: "Tagesausflug (Kopie)" }) } }));
-    api.on("GET /templates/t9", () => ({ body: { template: detail({ id: "t9", title: "Tagesausflug (Kopie)" }) } }));
-    const { ui } = renderApp("/templates");
-    await ui.click(await screen.findByRole("button", { name: "Vorlage Tagesausflug duplizieren" }));
-    expect(await screen.findByRole("heading", { name: "Tagesausflug (Kopie)", level: 1 })).toBeInTheDocument();
-    expect(screen.getByText("Die Kopie wurde angelegt.")).toBeInTheDocument();
-  });
-
-  it("löscht erst nach Rückfrage in den Papierkorb und meldet es", async () => {
-    const api = templatesApi();
-    api.on("DELETE /templates/t1", () => ({ status: 204 }));
-    const { ui } = renderApp("/templates");
-    await ui.click(await screen.findByRole("button", { name: "Vorlage Tagesausflug löschen" }));
-    const dialog = await screen.findByRole("dialog", { name: "Vorlage löschen?" });
-    expect(dialog).toHaveTextContent("Papierkorb");
-    expect(api.callsTo("DELETE /templates/t1")).toHaveLength(0);
-    await ui.click(within(dialog).getByRole("button", { name: "Löschen" }));
-    await waitFor(() => expect(api.callsTo("DELETE /templates/t1")).toHaveLength(1));
-    expect(await screen.findByText("„Tagesausflug“ wurde in den Papierkorb verschoben.")).toBeInTheDocument();
-  });
-
-  it("Abbrechen im Löschdialog löscht nichts", async () => {
-    const api = templatesApi();
-    const { ui } = renderApp("/templates");
-    await ui.click(await screen.findByRole("button", { name: "Vorlage Tagesausflug löschen" }));
-    await ui.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Abbrechen" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(api.callsTo("DELETE /templates/t1")).toHaveLength(0);
   });
 });
 
@@ -242,24 +204,23 @@ describe("Tags verwalten (F-17, F-18) – direkt im Profil", () => {
 });
 
 describe("Vorlagen-Editor: Details und Tags (F-12)", () => {
-  it("zeigt Punkte zuerst, darunter Details mit Titel, Beschreibung und gewählten Tags", async () => {
+  it("zeigt Punkte zuerst, darunter Details mit Titel und gewählten Tags", async () => {
     await openEditor();
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     expect(headings.indexOf("Punkte")).toBeLessThan(headings.indexOf("Details"));
     expect(screen.getByLabelText("Titel")).toHaveValue("Tagesausflug");
-    expect(screen.getByLabelText("Beschreibung (optional)")).toHaveValue("Für unterwegs");
+    expect(screen.queryByLabelText("Beschreibung (optional)")).not.toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Reisen/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /Outdoor/ })).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByRole("button", { name: "Tags verwalten" })).not.toBeInTheDocument();
     const list = screen.getByRole("list", { name: "Punkte der Vorlage" });
     expect(within(list).getAllByRole("listitem").map((li) => li.textContent?.match(/Rucksack|Sonnencreme|Regenjacke|Route prüfen/)?.[0])).toEqual(["Rucksack", "Sonnencreme", "Regenjacke", "Route prüfen"]);
-    expect(screen.getByText("Wetterfest")).toBeInTheDocument(); // Beschreibung des Punkts
     expect(screen.getByText(/4 Punkte insgesamt/)).toBeInTheDocument();
   });
 
-  it("speichert erst bei Änderungen und sendet Titel, Beschreibung, Tags und den ganzen Punktebaum", async () => {
+  it("speichert erst bei Änderungen und sendet Titel, Tags und den ganzen Punktebaum", async () => {
     const { api, ui } = await openEditor();
-    api.on("PUT /templates/t1", ({ body }) => ({ body: { template: detail({ title: body.title, description: body.description, tags: [TAG_A, TAG_B] }) } }));
+    api.on("PUT /templates/t1", ({ body }) => ({ body: { template: detail({ title: body.title, tags: [TAG_A, TAG_B] }) } }));
     const save = screen.getByRole("button", { name: "Speichern" });
     expect(save).toBeDisabled();
     await ui.clear(screen.getByLabelText("Titel"));
@@ -269,23 +230,14 @@ describe("Vorlagen-Editor: Details und Tags (F-12)", () => {
     await ui.click(save);
     await waitFor(() => expect(api.callsTo("PUT /templates/t1")).toHaveLength(1));
     expect(api.callsTo("PUT /templates/t1")[0]!.body).toEqual({
-      title: "Ausflug", description: "Für unterwegs", tagIds: ["g1", "g2"],
+      title: "Ausflug", tagIds: ["g1", "g2"],
       items: [
-        { title: "Rucksack", description: "Wetterfest", children: [{ title: "Sonnencreme", description: null }, { title: "Regenjacke", description: null }] },
-        { title: "Route prüfen", description: null },
+        { title: "Rucksack", children: [{ title: "Sonnencreme" }, { title: "Regenjacke" }] },
+        { title: "Route prüfen" },
       ],
     });
     expect(await screen.findByText("Gespeichert.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
-  });
-
-  it("leere Beschreibung wird als null gesendet", async () => {
-    const { api, ui } = await openEditor();
-    api.on("PUT /templates/t1", () => ({ body: { template: detail({ description: null }) } }));
-    await ui.clear(screen.getByLabelText("Beschreibung (optional)"));
-    await ui.click(screen.getByRole("button", { name: "Speichern" }));
-    await waitFor(() => expect(api.callsTo("PUT /templates/t1")).toHaveLength(1));
-    expect(api.callsTo("PUT /templates/t1")[0]!.body.description).toBeNull();
   });
 
   it("legt einen neuen Tag direkt im Editor an (Farbe vom Server) und wählt ihn aus", async () => {
@@ -337,17 +289,15 @@ describe("Vorlagen-Editor: Punkte werden lokal geändert und mit Speichern über
     expect(api.callsTo("PUT /templates/t1")[0]!.body.items[0].children.map((c: { title: string }) => c.title)).toEqual(["Sonnencreme", "Regenjacke", "Mütze"]);
   });
 
-  it("bearbeitet Titel und Beschreibung eines Punkts im Dialog", async () => {
+  it("bearbeitet den Titel eines Punkts im Dialog", async () => {
     const { api, ui } = await openEditor();
     await ui.click(screen.getByRole("button", { name: "Route prüfen bearbeiten" }));
     const dialog = await screen.findByRole("dialog", { name: "Punkt bearbeiten" });
     expect(within(dialog).getByLabelText("Titel")).toHaveValue("Route prüfen");
     await ui.clear(within(dialog).getByLabelText("Titel"));
     await ui.type(within(dialog).getByLabelText("Titel"), "Route und Wetter prüfen");
-    await ui.type(within(dialog).getByLabelText("Beschreibung (optional)"), "Komoot");
     await ui.click(within(dialog).getByRole("button", { name: "Übernehmen" }));
     expect(await screen.findByText("Route und Wetter prüfen")).toBeInTheDocument();
-    expect(screen.getByText("Komoot")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(api.callsTo("PUT /template-items/i2")).toHaveLength(0);
   });
@@ -450,9 +400,8 @@ describe("Vorlage erstellen", () => {
     return { api, dialog, ...r };
   }
 
-  it("fragt im Dialog nach Titel, Beschreibung und Tags und legt noch nichts an", async () => {
+  it("fragt im Dialog nach Titel und Tags und legt noch nichts an", async () => {
     const { api, dialog, ui } = await startCreate();
-    expect(within(dialog).getByLabelText("Beschreibung (optional)")).toBeInTheDocument();
     expect(await within(dialog).findByRole("button", { name: /Reisen/ })).toBeInTheDocument();
     await ui.click(within(dialog).getByRole("button", { name: "Weiter zu den Punkten" }));
     expect(await screen.findByRole("heading", { name: "Neue Vorlage: Packliste", level: 1 })).toBeInTheDocument();
@@ -468,7 +417,6 @@ describe("Vorlage erstellen", () => {
 
   it("zeigt Punkte vor den Details, aber weder Duplizieren noch Löschen; speichert alles mit Erstellen", async () => {
     const { api, dialog, ui } = await startCreate();
-    await ui.type(within(dialog).getByLabelText("Beschreibung (optional)"), "Für Reisen");
     await ui.click(await within(dialog).findByRole("button", { name: /Reisen/ }));
     await ui.click(within(dialog).getByRole("button", { name: "Weiter zu den Punkten" }));
     await screen.findByRole("heading", { name: "Neue Vorlage: Packliste", level: 1 });
@@ -486,8 +434,8 @@ describe("Vorlage erstellen", () => {
     await ui.click(screen.getByRole("button", { name: "Erstellen" }));
     await waitFor(() => expect(api.callsTo("POST /templates")).toHaveLength(1));
     expect(api.callsTo("POST /templates")[0]!.body).toEqual({
-      title: "Packliste", description: "Für Reisen", tagIds: ["g1"],
-      items: [{ title: "Zelt", description: null }, { title: "Schlafsack", description: null }],
+      title: "Packliste", tagIds: ["g1"],
+      items: [{ title: "Zelt" }, { title: "Schlafsack" }],
     });
     // danach im normalen Bearbeiten-Modus (ohne Rückfrage)
     expect(await screen.findByText("Die Vorlage wurde erstellt.")).toBeInTheDocument();
@@ -550,5 +498,48 @@ describe("Vorlagen-Editor: Export, Duplizieren, Löschen", () => {
     api.on("GET /templates/t9", () => ({ body: { template: detail({ id: "t9", title: "Tagesausflug (Kopie)" }) } }));
     await ui.click(screen.getByRole("button", { name: "Duplizieren" }));
     expect(await screen.findByRole("heading", { name: "Tagesausflug (Kopie)", level: 1 })).toBeInTheDocument();
+  });
+});
+
+describe("Vorlage in Vorlage (Verweise)", () => {
+  const ref: ItemNode = { id: "i3", title: "Hygiene", position: 2, children: [], ref: { templateId: "t3", title: "Hygiene", itemCount: 3, missing: false } };
+  const withRef = (api: ReturnType<typeof mockApi>, usedInCount = 0) =>
+    api.on("GET /templates/t1", () => ({ body: { template: detail({ items: [...tree(), ref], usedInCount }) } }));
+
+  it("zeigt verwiesene Vorlagen als Eintrag mit Link und Anzahl, ohne Bearbeiten und Unterpunkte", async () => {
+    const api = templatesApi();
+    withRef(api);
+    renderApp("/templates/t1");
+    const link = await screen.findByRole("link", { name: "Hygiene" });
+    expect(link).toHaveAttribute("href", "/templates/t3");
+    const li = link.closest("li")!;
+    expect(li).toHaveTextContent("3 Punkte");
+    expect(within(li).queryByRole("button", { name: /Unterpunkt zu Hygiene/ })).not.toBeInTheDocument();
+    expect(within(li).queryByRole("button", { name: /Hygiene bearbeiten/ })).not.toBeInTheDocument();
+    expect(within(li).getByRole("button", { name: /Hygiene löschen/ })).toBeInTheDocument();
+  });
+
+  it("fügt eine Vorlage ein und speichert sie als Verweis", async () => {
+    const api = templatesApi({ templates: [summary(), summary({ id: "t3", title: "Hygiene", itemCount: 3, tags: [] })] });
+    api.on("PUT /templates/t1", ({ body }) => ({ body: { template: detail({ items: [...tree(), ref] }) } }));
+    const { ui } = await openEditor(api);
+    await ui.click(screen.getByRole("button", { name: "Vorlage einfügen" }));
+    const dialog = await screen.findByRole("dialog", { name: "Vorlage einfügen" });
+    expect(within(dialog).queryByLabelText("Tagesausflug")).not.toBeInTheDocument(); // die Vorlage selbst steht nicht zur Wahl
+    await ui.click(await within(dialog).findByLabelText("Hygiene"));
+    await ui.click(within(dialog).getByRole("button", { name: "Einfügen" }));
+    expect(await screen.findByRole("link", { name: "Hygiene" })).toBeInTheDocument();
+    await ui.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(api.callsTo("PUT /templates/t1")).toHaveLength(1));
+    expect(api.callsTo("PUT /templates/t1")[0]!.body.items.at(-1)).toEqual({ refTemplateId: "t3" });
+  });
+
+  it("warnt im Editor mit der Anzahl (Einzahl)", async () => {
+    const api = templatesApi();
+    withRef(api, 1);
+    api.on("GET /templates/t1", () => ({ body: { template: detail({ usedInCount: 1 }) } }));
+    const { ui } = renderApp("/templates/t1");
+    await ui.click(await screen.findByRole("button", { name: "Löschen" }));
+    expect(await within(await screen.findByRole("dialog")).findByText(/in 1 Vorlage verwendet/)).toBeInTheDocument();
   });
 });

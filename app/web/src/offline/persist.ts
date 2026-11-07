@@ -4,7 +4,9 @@ import { resetQueue } from "./queue";
 
 /** Nur diese Abfragen bleiben offline verfügbar (F-74). Freigabe-Links und Kontodaten gehören bewusst nicht dazu. */
 const OFFLINE_KEYS = new Set(["runs", "run", "templates", "template", "tags"]);
-interface Saved { userId: string; savedAt: number; state: ReturnType<typeof dehydrate> }
+/** Bei geänderter Form der Antworten erhöhen: ein älterer Zwischenspeicher wird dann verworfen statt angezeigt. */
+const CACHE_VERSION = 2;
+interface Saved { version?: number; userId: string; savedAt: number; state: ReturnType<typeof dehydrate> }
 
 let stopCurrent: (() => void) | null = null;
 
@@ -12,7 +14,7 @@ let stopCurrent: (() => void) | null = null;
 export async function restoreCache(qc: QueryClient, userId: string) {
   const saved = await kvGet<Saved>("cache");
   if (!saved) return;
-  if (saved.userId !== userId) return void (await kvDel("cache"));
+  if (saved.userId !== userId || saved.version !== CACHE_VERSION) return void (await kvDel("cache"));
   hydrate(qc, saved.state);
 }
 
@@ -24,7 +26,7 @@ export function startPersisting(qc: QueryClient, userId: string): () => void {
     clearTimeout(timer);
     timer = setTimeout(() => {
       const state = dehydrate(qc, { shouldDehydrateQuery: (q) => q.state.status === "success" && OFFLINE_KEYS.has(String(q.queryKey[0])) });
-      void kvSet("cache", { userId, savedAt: Date.now(), state } satisfies Saved);
+      void kvSet("cache", { version: CACHE_VERSION, userId, savedAt: Date.now(), state } satisfies Saved);
     }, 800);
   };
   const unsubscribe = qc.getQueryCache().subscribe(save);

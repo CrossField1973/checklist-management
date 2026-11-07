@@ -6,11 +6,14 @@
 
 import { newId } from "./id";
 
+/** Verweis auf eine andere Vorlage: deren Punkte erscheinen in Durchführungen als Unterpunkte (hier ohne eigene Kinder). */
+export interface RefInfo { templateId: string; title: string; itemCount: number; missing: boolean }
+
 export interface ItemNode {
   id: string;
   title: string;
-  description: string | null;
   position: number;
+  ref?: RefInfo | null;
   children: ItemNode[];
 }
 
@@ -118,6 +121,7 @@ export function indentTarget(tree: ItemNode[], id: string): MoveTarget | null {
   const p = placeOf(tree, id);
   if (!p || p.index === 0) return null;
   const previous = p.siblings[p.index - 1]!;
+  if (previous.ref) return null; // unter einen Verweis passen keine eigenen Punkte
   return { parentItemId: previous.id, position: previous.children.length };
 }
 
@@ -157,7 +161,7 @@ export function getProjection(flat: readonly FlatItem[], activeId: string, overI
   const previous = items[overIndex - 1];
   const next = items[overIndex + 1];
   const dragDepth = Math.round(offsetX / indentWidth);
-  const maxDepth = previous ? previous.depth + 1 : 0;
+  const maxDepth = previous ? previous.depth + (previous.node.ref ? 0 : 1) : 0; // unter einen Verweis kann nichts gezogen werden
   const minDepth = next ? next.depth : 0;
   const depth = Math.min(Math.max(active.depth + dragDepth, minDepth), Math.max(maxDepth, minDepth));
 
@@ -186,7 +190,7 @@ export function isSamePlace(tree: ItemNode[], id: string, target: MoveTarget): b
 
 /** Fügt einen Punkt mit vorläufiger ID ans Ende der Geschwister von `parentId` an (null = oberste Ebene). */
 export function addToTree(tree: ItemNode[], title: string, parentId: string | null): ItemNode[] {
-  const node: ItemNode = { id: `tmp-${newId()}`, title, description: null, position: 0, children: [] };
+  const node: ItemNode = { id: `tmp-${newId()}`, title, position: 0, children: [] };
   return parentId === null ? renumber([...tree, node]) : addChild(tree, node, parentId);
 }
 
@@ -194,7 +198,7 @@ function addChild(nodes: ItemNode[], node: ItemNode, parentId: string): ItemNode
   return nodes.map((n) => (n.id === parentId ? { ...n, children: renumber([...n.children, node]) } : { ...n, children: addChild(n.children, node, parentId) }));
 }
 
-export function updateInTree(tree: ItemNode[], id: string, patch: { title: string; description: string | null }): ItemNode[] {
+export function updateInTree(tree: ItemNode[], id: string, patch: { title: string }): ItemNode[] {
   return tree.map((n) => (n.id === id ? { ...n, ...patch } : { ...n, children: updateInTree(n.children, id, patch) }));
 }
 
@@ -202,11 +206,18 @@ export function removeFromTree(tree: ItemNode[], id: string): ItemNode[] {
   return renumber(tree.filter((n) => n.id !== id).map((n) => ({ ...n, children: removeFromTree(n.children, id) })));
 }
 
-export interface ItemInput { title: string; description?: string | null; children?: ItemInput[] }
+export interface ItemInput { title?: string; refTemplateId?: string; children?: ItemInput[] }
+
+/** Fügt einen Verweis auf eine andere Vorlage ans Ende der obersten Ebene an. */
+export function addRefToTree(tree: ItemNode[], ref: RefInfo): ItemNode[] {
+  return renumber([...tree, { id: `tmp-${newId()}`, title: ref.title, position: 0, ref, children: [] }]);
+}
 
 /** Baum in die Form für `POST/PUT /templates` (ohne IDs; die Reihenfolge ergibt die Positionen). */
 export function toInput(tree: ItemNode[]): ItemInput[] {
-  return tree.map((n) => ({ title: n.title, description: n.description, ...(n.children.length ? { children: toInput(n.children) } : {}) }));
+  return tree.map((n) => (n.ref
+    ? { refTemplateId: n.ref.templateId }
+    : { title: n.title, ...(n.children.length ? { children: toInput(n.children) } : {}) }));
 }
 
 // ---------- Mehrere Abschnitte (Checklisten): Ziehen über Abschnittsgrenzen ----------
@@ -286,24 +297,28 @@ export function getBoardProjection(rows: readonly BoardRow[], activeId: string, 
 interface Counted { isChecked: boolean; childProgress: { done: number; total: number }; children: Counted[] }
 
 /**
- * Berechnet die Fortschrittszähler (je Unterpunkt-Gruppe, je Abschnitt und für die ganze Checkliste) neu –
- * gleiche Zählweise wie der Server (alle Ebenen). So stimmen „x/y“ auch im Zwischenstand vor der Antwort des Servers.
+ * Gleicht Erledigt-Markierungen und Fortschrittszähler wie der Server an: ein Punkt mit Unterpunkten ist erledigt, wenn alle
+ * Unterpunkte es sind; gezählt wird nur die jeweils direkte Ebene (Unterpunkte am Punkt, oberste Ebene je Abschnitt und gesamt).
+ * So stimmen Anzeige und „x/y“ auch im Zwischenstand vor der Antwort des Servers.
  */
 export function withProgress<N extends Counted, S extends { progress: { done: number; total: number }; items: N[] }>(sections: S[]): { sections: S[]; progress: { done: number; total: number } } {
-  const walk = (list: N[]): { nodes: N[]; done: number; total: number } => {
-    let done = 0;
-    let total = 0;
-    const nodes = list.map((n) => {
-      const sub = walk(n.children as N[]);
-      done += sub.done + (n.isChecked ? 1 : 0);
-      total += sub.total + 1;
-      return { ...n, children: sub.nodes, childProgress: { done: sub.done, total: sub.total } };
-    });
-    return { nodes, done, total };
-  };
-  const out = sections.map((s) => {
-    const r = walk(s.items);
-    return { ...s, items: r.nodes, progress: { done: r.done, total: r.total } };
+  const walk = (list: N[]): N[] => list.map((n) => {
+    const children = walk(n.children as N[]);
+    return {
+      ...n, children,
+      isChecked: children.length ? children.every((c) => c.isChecked) : n.isChecked,
+      childProgress: { done: children.filter((c) => c.isChecked).length, total: children.length },
+    };
   });
-  return { sections: out, progress: out.reduce((a, s) => ({ done: a.done + s.progress.done, total: a.total + s.progress.total }), { done: 0, total: 0 }) };
+  const out = sections.map((s) => {
+    const items = walk(s.items);
+    return { ...s, items, progress: { done: items.filter((i) => i.isChecked).length, total: items.length } };
+  });
+  return { sections: out, progress: out.reduce((acc, s) => ({ done: acc.done + s.progress.done, total: acc.total + s.progress.total }), { done: 0, total: 0 }) };
+}
+
+/** Hakt einen Punkt samt allen Unterpunkten ab bzw. nimmt es zurück (die Überpunkte gleicht `withProgress` danach an). */
+export function applyCheck<N extends { id: string; isChecked: boolean; children: N[] }>(items: N[], id: string, checked: boolean): N[] {
+  const setAll = (n: N): N => ({ ...n, isChecked: checked, children: n.children.map(setAll) });
+  return items.map((n) => (n.id === id ? setAll(n) : { ...n, children: applyCheck(n.children, id, checked) }));
 }

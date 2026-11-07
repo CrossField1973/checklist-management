@@ -51,8 +51,8 @@ test("Vorlage → Checkliste → abhaken → archivieren → wiederherstellen �
   await expect(page.getByRole("checkbox", { name: "Route prüfen" })).not.toBeChecked();
 
   // Eigener Punkt
-  await page.getByLabel("Neuer Punkt in Tagesausflug").fill("Sonnenbrille");
-  await page.getByLabel("Neuer Punkt in Tagesausflug").press("Enter");
+  await page.getByLabel("Neuen Punkt hinzufügen").fill("Sonnenbrille");
+  await page.getByLabel("Neuen Punkt hinzufügen").press("Enter");
   await expect(page.getByRole("checkbox", { name: "Sonnenbrille" })).toBeVisible();
 
   // Archivieren → Archiv → schreibgeschützt → wieder öffnen
@@ -182,8 +182,8 @@ test("Offline (PWA): App startet ohne Verbindung, Abhaken und Hinzufügen werden
   await expect(page.getByText(/Du bist offline/)).toBeVisible();
 
   await page.getByRole("checkbox", { name: "Wasser" }).check();
-  await page.getByLabel("Neuer Punkt in Wanderung").fill("Sonnencreme");
-  await page.getByLabel("Neuer Punkt in Wanderung").press("Enter");
+  await page.getByLabel("Neuen Punkt hinzufügen").fill("Sonnencreme");
+  await page.getByLabel("Neuen Punkt hinzufügen").press("Enter");
   await expect(page.getByText("wartet auf Übertragung")).toBeVisible();
   await expect(page.getByText(/2 Änderungen warten/)).toBeVisible();
 

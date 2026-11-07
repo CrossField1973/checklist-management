@@ -4,24 +4,24 @@ import type { RunDetail, RunItemNode, RunSummary, TemplateSummary, TrashEntry } 
 import { USER, apiError, mockApi, renderApp } from "./harness";
 
 const item = (id: string, title: string, isChecked = false, children: RunItemNode[] = []): RunItemNode => ({
-  id, title, description: null, position: 0, isChecked, checkedAt: null,
+  id, title, position: 0, isChecked, checkedAt: null,
   childProgress: { done: children.filter((c) => c.isChecked).length, total: children.length }, children,
 });
 const detail = (over: Partial<RunDetail> = {}): RunDetail => ({
-  id: "r1", title: "Ausflug Füssen", status: "active", createdAt: 1, updatedAt: 1, archivedAt: null, share: null, progress: { done: 1, total: 4 },
+  id: "r1", title: "Ausflug Füssen", status: "active", createdAt: 1, updatedAt: 1, archivedAt: null, share: null, progress: { done: 1, total: 3 },
   sections: [{
-    id: "s1", title: "Tagesausflug", position: 0, sourceTemplateId: "t1", progress: { done: 1, total: 4 },
+    id: "s1", title: "Ausflug Füssen", position: 0, sourceTemplateId: null, progress: { done: 1, total: 3 },
     items: [item("a", "Rucksack", true), item("b", "Route prüfen"), item("c", "Proviant", false, [item("d", "Brot")])],
   }],
   ...over,
 });
 const summary = (over: Partial<RunSummary> = {}): RunSummary => ({
   id: "r1", title: "Ausflug Füssen", status: "active", createdAt: 1, updatedAt: 1_700_000_000_000, archivedAt: null,
-  sectionTitles: ["Tagesausflug", "Therme"], progress: { done: 1, total: 4 }, share: null, ...over,
+  itemTitles: ["Tagesausflug", "Therme"], progress: { done: 1, total: 4 }, share: null, ...over,
 });
-const tpl = (id: string, title: string): TemplateSummary => ({ id, title, description: null, tags: [], itemCount: 1, createdAt: 1, updatedAt: 1 });
+const tpl = (id: string, title: string): TemplateSummary => ({ id, title, tags: [], itemCount: 1, createdAt: 1, updatedAt: 1 });
 
-function runsApi(list: RunSummary[] = [summary(), summary({ id: "r2", title: "Putzen", sectionTitles: ["Wohnung"], progress: { done: 0, total: 0 }, share: { access: "password", permission: "edit" } })]) {
+function runsApi(list: RunSummary[] = [summary(), summary({ id: "r2", title: "Putzen", itemTitles: ["Wohnung"], progress: { done: 0, total: 0 }, share: { access: "password", permission: "edit" } })]) {
   const api = mockApi();
   api.on("GET /runs", () => ({ body: { total: list.length, runs: list } }));
   api.on("GET /runs/r1", () => ({ body: { run: detail() } }));
@@ -76,7 +76,7 @@ describe("Checklisten – Startseite (F-20)", () => {
 describe("Checkliste bearbeiten (F-23 bis F-26)", () => {
   it("hakt Punkte sofort ab und speichert mit dem Server", async () => {
     const api = runsApi();
-    api.on("PUT /run-items/b", () => ({ body: { run: detail({ progress: { done: 2, total: 4 }, sections: [{ ...detail().sections[0]!, items: [item("a", "Rucksack", true), item("b", "Route prüfen", true), item("c", "Proviant", false, [item("d", "Brot")])] }] }) } }));
+    api.on("PUT /run-items/b", () => ({ body: { run: detail({ progress: { done: 2, total: 3 }, sections: [{ ...detail().sections[0]!, items: [item("a", "Rucksack", true), item("b", "Route prüfen", true), item("c", "Proviant", false, [item("d", "Brot")])] }] }) } }));
     const { ui } = renderApp("/runs/r1");
     const box = await screen.findByRole("checkbox", { name: "Route prüfen" });
     expect(box).not.toBeChecked();
@@ -121,7 +121,7 @@ describe("Checkliste bearbeiten (F-23 bis F-26)", () => {
     const api = runsApi();
     api.on("POST /run-sections/s1/items", () => ({ status: 201, body: { itemId: "x", run: detail() } }));
     const { ui } = renderApp("/runs/r1");
-    await ui.type(await screen.findByLabelText("Neuer Punkt in Tagesausflug"), "Sonnenbrille{Enter}");
+    await ui.type(await screen.findByLabelText("Neuen Punkt hinzufügen"), "Sonnenbrille{Enter}");
     await waitFor(() => expect(api.callsTo("POST /run-sections/s1/items")[0]!.body).toEqual({ title: "Sonnenbrille", parentItemId: null }));
     await ui.click(screen.getByRole("button", { name: "Unterpunkt zu Route prüfen hinzufügen" }));
     await ui.type(await screen.findByLabelText("Neuer Unterpunkt von Route prüfen"), "Karte{Enter}");
@@ -138,15 +138,15 @@ describe("Checkliste bearbeiten (F-23 bis F-26)", () => {
     await waitFor(() => expect(api.callsTo("DELETE /run-items/b")).toHaveLength(1));
   });
 
-  it("ergänzt Vorlagen nachträglich als neue Abschnitte (F-22)", async () => {
+  it("ergänzt Vorlagen nachträglich als neue Überpunkte (F-22)", async () => {
     const api = runsApi();
-    api.on("POST /runs/r1/sections", () => ({ status: 201, body: { run: detail() } }));
+    api.on("POST /runs/r1/templates", () => ({ status: 201, body: { run: detail() } }));
     const { ui } = renderApp("/runs/r1");
     await ui.click(await screen.findByRole("button", { name: /Vorlagen hinzufügen/ }));
     const dialog = await screen.findByRole("dialog");
     await ui.click(await within(dialog).findByLabelText("Therme"));
     await ui.click(within(dialog).getByRole("button", { name: "Hinzufügen" }));
-    await waitFor(() => expect(api.callsTo("POST /runs/r1/sections")[0]!.body).toEqual({ templateIds: ["t2"] }));
+    await waitFor(() => expect(api.callsTo("POST /runs/r1/templates")[0]!.body).toEqual({ templateIds: ["t2"] }));
   });
 
   it("zeigt einen Hinweis, wenn die Checkliste nicht existiert", async () => {
@@ -377,7 +377,7 @@ describe("Bedienung (UX)", () => {
   it("weist darauf hin, wenn alles erledigt ist", async () => {
     const api = runsApi();
     const done = detail();
-    done.progress = { done: 4, total: 4 };
+    done.progress = { done: 1, total: 1 };
     done.sections[0]!.items = [item("a", "Rucksack", true)];
     api.on("GET /runs/r1", () => ({ body: { run: done } }));
     renderApp("/runs/r1");
@@ -392,45 +392,21 @@ describe("Bedienung (UX)", () => {
   });
 });
 
-describe("Reihenfolge ändern (Abschnitte und Punkte)", () => {
-  const twoSections = (): RunDetail => detail({
-    progress: { done: 1, total: 6 },
-    sections: [
-      { id: "s1", title: "Tagesausflug", position: 0, sourceTemplateId: "t1", progress: { done: 1, total: 4 }, items: [item("a", "Rucksack", true), item("b", "Route prüfen"), item("c", "Proviant", false, [item("d", "Brot")])] },
-      { id: "s2", title: "Therme", position: 1, sourceTemplateId: "t2", progress: { done: 0, total: 2 }, items: [item("e", "Badehose"), item("f", "Handtuch")] },
-    ],
-  });
-  const sectionTitles = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-
-  it("verschiebt Abschnitte mit Pfeilen; Randpfeile sind deaktiviert", async () => {
+describe("Reihenfolge ändern, Abhaken und Fortschritt", () => {
+  it("zeigt keine Abschnitte, nur die Punkte; archivierte Checklisten haben keine Verschiebe-Bedienung", async () => {
     const api = runsApi();
-    api.on("GET /runs/r1", () => ({ body: { run: twoSections() } }));
-    api.on("POST /run-sections/s2/move", () => ({ body: { run: { ...twoSections(), sections: [twoSections().sections[1]!, twoSections().sections[0]!] } } }));
-    const { ui } = renderApp("/runs/r1");
-    await screen.findByRole("heading", { name: "Tagesausflug", level: 2 });
-    expect(screen.getByRole("button", { name: "Abschnitt Tagesausflug nach oben" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Abschnitt Therme nach unten" })).toBeDisabled();
-    await ui.click(screen.getByRole("button", { name: "Abschnitt Therme nach oben" }));
-    expect(sectionTitles()).toEqual(["Therme", "Tagesausflug"]); // sofort sichtbar
-    await waitFor(() => expect(api.callsTo("POST /run-sections/s2/move")).toHaveLength(1));
-    expect(api.callsTo("POST /run-sections/s2/move")[0]!.body).toEqual({ position: 0 });
-    expect(sectionTitles()).toEqual(["Therme", "Tagesausflug"]);
-  });
-
-  it("zeigt keine Verschiebe-Bedienung in archivierten Checklisten", async () => {
-    const api = runsApi();
-    api.on("GET /runs/r1", () => ({ body: { run: { ...twoSections(), status: "archived", archivedAt: 5 } } }));
+    api.on("GET /runs/r1", () => ({ body: { run: { ...detail(), status: "archived", archivedAt: 5 } } }));
     renderApp("/runs/r1");
-    await screen.findByRole("heading", { name: "Tagesausflug", level: 2 });
+    await screen.findByRole("checkbox", { name: "Route prüfen" });
+    expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /nach oben/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /verschieben/ })).not.toBeInTheDocument();
   });
 
   it("Punkte lassen sich mit Pfeilen verschieben und ein-/ausrücken; Ziehgriff ist vorhanden", async () => {
     const api = runsApi();
-    api.on("GET /runs/r1", () => ({ body: { run: twoSections() } }));
-    api.on("POST /run-items/b/move", () => ({ body: { run: twoSections() } }));
-    api.on("POST /run-items/d/move", () => ({ body: { run: twoSections() } }));
+    api.on("POST /run-items/b/move", () => ({ body: { run: detail() } }));
+    api.on("POST /run-items/d/move", () => ({ body: { run: detail() } }));
     const { ui } = renderApp("/runs/r1");
     await screen.findByRole("checkbox", { name: "Route prüfen" });
     expect(screen.getByRole("button", { name: /Route prüfen verschieben/ })).toBeInTheDocument();
@@ -446,10 +422,24 @@ describe("Reihenfolge ändern (Abschnitte und Punkte)", () => {
   it("Ziehen ist bei ausgeblendeten Erledigten abgeschaltet (Position wäre unklar)", async () => {
     const api = runsApi();
     api.setUser({ ...USER, hideDone: true });
-    api.on("GET /runs/r1", () => ({ body: { run: twoSections() } }));
     renderApp("/runs/r1");
     await screen.findByRole("checkbox", { name: "Route prüfen" });
     expect(screen.queryByRole("button", { name: /Route prüfen verschieben/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Abschnitt Therme nach oben" })).toBeEnabled(); // Abschnitte bleiben verschiebbar
+  });
+
+  it("Abhaken wirkt sofort auf Unter- und Überpunkte und zählt nur die direkte Ebene (x/y)", async () => {
+    const api = runsApi();
+    let release: (v: unknown) => void = () => undefined;
+    api.on("PUT /run-items/d", () => new Promise((resolve) => { release = resolve; }) as never);
+    const { ui } = renderApp("/runs/r1");
+    await ui.click(await screen.findByRole("checkbox", { name: "Brot" }));
+    // einziger Unterpunkt erledigt → „Proviant“ gilt sofort als erledigt, Zähler am Überpunkt und gesamt stimmen
+    expect(screen.getByRole("checkbox", { name: "Proviant" })).toBeChecked();
+    expect(screen.getByLabelText("1 von 1 Unterpunkten erledigt")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Fortschritt von Ausflug Füssen" })).toHaveAttribute("aria-valuenow", "2");
+    await ui.click(screen.getByRole("checkbox", { name: "Proviant" })); // Überpunkt zurücknehmen → auch „Brot“
+    expect(screen.getByRole("checkbox", { name: "Brot" })).not.toBeChecked();
+    expect(screen.getByRole("progressbar", { name: "Fortschritt von Ausflug Füssen" })).toHaveAttribute("aria-valuenow", "1");
+    release({ status: 200, body: { run: detail() } });
   });
 });

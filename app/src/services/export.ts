@@ -2,15 +2,15 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { schema } from "../db/index.js";
 import { buildSections, loadRunItems, loadSections, type RunItemNode } from "./run-items.js";
-import { buildTree, loadItems, type ItemNode } from "./template-items.js";
+import { expandTemplate, type PlainItem } from "./template-items.js";
 import { toCsv, type Delimiter } from "./csv.js";
 
 export const EXPORT_FORMAT = "checklisten-export";
 export const EXPORT_VERSION = 1;
 
-export interface ExportItem { title: string; description: string | null; children: ExportItem[] }
+export interface ExportItem { title: string; children: ExportItem[] }
 export interface ExportRunItem extends ExportItem { isChecked: boolean; checkedAt: string | null; children: ExportRunItem[] }
-export interface ExportTemplate { title: string; description: string | null; tags: string[]; items: ExportItem[]; deletedAt?: string }
+export interface ExportTemplate { title: string; tags: string[]; items: ExportItem[]; deletedAt?: string }
 export interface ExportRun {
   title: string; status: "active" | "archived"; createdAt: string; archivedAt: string | null;
   sections: { title: string; items: ExportRunItem[] }[];
@@ -19,10 +19,10 @@ export interface ExportRun {
 
 const iso = (ms: number | null | undefined) => (ms == null ? null : new Date(ms).toISOString());
 
-const toExportItems = (nodes: ItemNode[]): ExportItem[] =>
-  nodes.map((n) => ({ title: n.title, description: n.description, children: toExportItems(n.children) }));
+const toExportItems = (nodes: PlainItem[]): ExportItem[] =>
+  nodes.map((n) => ({ title: n.title, children: toExportItems(n.children ?? []) }));
 const toExportRunItems = (nodes: RunItemNode[]): ExportRunItem[] =>
-  nodes.map((n) => ({ title: n.title, description: n.description, isChecked: n.isChecked, checkedAt: iso(n.checkedAt), children: toExportRunItems(n.children) }));
+  nodes.map((n) => ({ title: n.title, isChecked: n.isChecked, checkedAt: iso(n.checkedAt), children: toExportRunItems(n.children) }));
 
 type TemplateRow = typeof schema.templates.$inferSelect;
 type RunRow = typeof schema.runs.$inferSelect;
@@ -35,8 +35,8 @@ function tagNamesOf(db: Db, templateId: string): string[] {
 
 export function exportTemplate(db: Db, t: TemplateRow): ExportTemplate {
   return {
-    title: t.title, description: t.description, tags: tagNamesOf(db, t.id),
-    items: toExportItems(buildTree(loadItems(db, t.id))),
+    title: t.title, tags: tagNamesOf(db, t.id),
+    items: toExportItems(expandTemplate(db, t.id)) /* Verweise werden als Kopie der Punkte exportiert */,
     ...(t.deletedAt !== null && { deletedAt: iso(t.deletedAt)! }),
   };
 }
@@ -67,23 +67,23 @@ export function exportAll(db: Db, userId: string, opts: { includeTrash?: boolean
 }
 
 // ---------------------------------------------------------------------------------------------
-// CSV (Vorlagen: Vorlage, Ebene, Titel, Beschreibung – Durchführungen: Abschnitt, Ebene, Titel, Beschreibung, Erledigt, Erledigt am)
+// CSV (Vorlagen: Vorlage, Ebene, Titel – Durchführungen: Abschnitt, Ebene, Titel, Erledigt, Erledigt am)
 // ---------------------------------------------------------------------------------------------
-export const TEMPLATE_CSV_HEADER = ["Vorlage", "Ebene", "Titel", "Beschreibung"];
-export const RUN_CSV_HEADER = ["Abschnitt", "Ebene", "Titel", "Beschreibung", "Erledigt", "Erledigt am"];
+export const TEMPLATE_CSV_HEADER = ["Vorlage", "Ebene", "Titel"];
+export const RUN_CSV_HEADER = ["Abschnitt", "Ebene", "Titel", "Erledigt", "Erledigt am"];
 
 function flatten<T extends ExportItem>(items: T[], level = 1): { level: number; item: T }[] {
   return items.flatMap((item) => [{ level, item }, ...flatten(item.children as T[], level + 1)]);
 }
 
 export function templateToCsv(t: ExportTemplate, delimiter: Delimiter): string {
-  const rows = flatten(t.items).map(({ level, item }) => [t.title, String(level), item.title, item.description ?? ""]);
+  const rows = flatten(t.items).map(({ level, item }) => [t.title, String(level), item.title]);
   return toCsv([TEMPLATE_CSV_HEADER, ...rows], delimiter);
 }
 
 export function runToCsv(r: ExportRun, delimiter: Delimiter): string {
   const rows = r.sections.flatMap((s) =>
-    flatten(s.items).map(({ level, item }) => [s.title, String(level), item.title, item.description ?? "", item.isChecked ? "ja" : "nein", item.checkedAt ?? ""]));
+    flatten(s.items).map(({ level, item }) => [s.title, String(level), item.title, item.isChecked ? "ja" : "nein", item.checkedAt ?? ""]));
   return toCsv([RUN_CSV_HEADER, ...rows], delimiter);
 }
 
@@ -95,14 +95,12 @@ const oneLine = (s: string) => s.replace(/\s*[\r\n]+\s*/g, " ").trim();
 function mdItems(items: ExportItem[], checkbox: boolean, depth = 0): string[] {
   return items.flatMap((i) => {
     const box = checkbox ? ((i as ExportRunItem).isChecked ? "[x] " : "[ ] ") : "";
-    const desc = i.description ? ` – ${oneLine(i.description)}` : "";
-    return [`${"  ".repeat(depth)}- ${box}${oneLine(i.title)}${desc}`, ...mdItems(i.children, checkbox, depth + 1)];
+    return [`${"  ".repeat(depth)}- ${box}${oneLine(i.title)}`, ...mdItems(i.children, checkbox, depth + 1)];
   });
 }
 
 export function templateToMarkdown(t: ExportTemplate): string {
   const parts = [`# ${oneLine(t.title)}`];
-  if (t.description) parts.push(t.description.trim());
   if (t.tags.length) parts.push(`Tags: ${t.tags.join(", ")}`);
   if (t.items.length) parts.push(mdItems(t.items, false).join("\n"));
   return parts.join("\n\n") + "\n";
@@ -111,7 +109,7 @@ export function templateToMarkdown(t: ExportTemplate): string {
 export function runToMarkdown(r: ExportRun): string {
   const parts = [`# ${oneLine(r.title)}`];
   for (const s of r.sections) {
-    parts.push(`## ${oneLine(s.title)}`);
+    if (r.sections.length > 1) parts.push(`## ${oneLine(s.title)}`); // Standard: ein interner Abschnitt, keine Überschrift nötig
     if (s.items.length) parts.push(mdItems(s.items, true).join("\n"));
   }
   return parts.join("\n\n") + "\n";

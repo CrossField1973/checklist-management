@@ -1,0 +1,1 @@
+ALTER TABLE `template_items` ADD `ref_template_id` text REFERENCES templates(id);

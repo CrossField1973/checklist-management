@@ -24,9 +24,9 @@ Eine Web-App, mit der jeder Nutzer **Vorlagen** für Checklisten pflegt und dara
 | Begriff | Bedeutung | Mendix-Original |
 |---|---|---|
 | **Vorlage** | Wiederverwendbare Liste von Punkten. Wird nie abgehakt. Kann Tags tragen. | `Checklist` (Original) |
-| **Punkt** | Eintrag einer Vorlage mit Titel, Beschreibung und beliebig vielen Unterpunkten. | `Task` |
-| **Durchführung** | Konkrete Verwendung, z. B. „Ausflug Füssen“. Besteht aus einem oder mehreren Abschnitten. Ist aktiv oder archiviert. | `Checklist` (Kopie) |
-| **Abschnitt** | Aus einer Vorlage übernommene Punkte innerhalb einer Durchführung. Momentaufnahme (Kopie). | – (neu) |
+| **Punkt** | Eintrag einer Vorlage mit Titel und beliebig vielen Unterpunkten. | `Task` |
+| **Durchführung** | Konkrete Verwendung, z. B. „Ausflug Füssen“. Besteht aus Punkten; jede übernommene Vorlage wird ein Überpunkt mit ihren Punkten darunter. Ist aktiv oder archiviert. | `Checklist` (Kopie) |
+| **Abschnitt** | Nur noch intern: genau ein Abschnitt je Durchführung hält die obersten Punkte. Nutzer sehen keine Abschnitte. | – (neu) |
 | **Durchführungspunkt** | Ein abhakbarer Punkt in einem Abschnitt. | `Task` (Kopie) |
 | **Abschließen** | Durchführung ist erledigt und wird **gelöscht** (Papierkorb). Es gibt keinen Status „abgeschlossen“. | `Complete` (löschte) |
 | **Status** | `aktiv` oder `archiviert` (siehe 3.4). | – (neu) |
@@ -57,8 +57,8 @@ Eine Web-App, mit der jeder Nutzer **Vorlagen** für Checklisten pflegt und dara
 | ID | Anforderung |
 |---|---|
 | **F-11** | **Vorlagenliste:** Eigene Vorlagen mit Titel, Anzahl Punkte und farbigen Tags; Suche nach Titel, Filter nach Tag, Sortierung, Paginierung. Button „Neue Vorlage“. |
-| **F-12** | **Vorlage anlegen/bearbeiten:** Titel (Pflicht), Beschreibung (optional), Tags. |
-| **F-13** | **Punkte pflegen:** Hinzufügen, Bearbeiten (Titel Pflicht, Beschreibung mehrzeilig), Löschen, **Umsortieren per Drag-and-Drop**. |
+| **F-12** | **Vorlage anlegen/bearbeiten:** Titel (Pflicht), Tags. |
+| **F-13** | **Punkte pflegen:** Hinzufügen, Bearbeiten (Titel Pflicht), Löschen, **Umsortieren per Drag-and-Drop**. |
 | **F-14** | **Unterpunkte:** Jeder Punkt kann Unterpunkte haben, **beliebig tief** (technisch unproblematisch über `parent_item_id` und rekursive Abfrage). Auf-/Zuklappen; Verschieben zwischen Ebenen per Drag-and-Drop (Maus, Touch **und Tastatur**: Leertaste aufnehmen, Pfeiltasten bewegen, Leertaste ablegen; horizontales Ziehen ändert die Ebene). **Gleichwertige Alternative ohne Ziehen** (WCAG 2.5.7): Schaltflächen „nach oben/unten“ und „ein-/ausrücken“ an jedem Punkt; Screenreader-Ansagen beim Ziehen. Änderungen erscheinen sofort (optimistisch) und werden bei Fehlern zurückgenommen. |
 | **F-15** | **Vorlage duplizieren.** |
 | **F-16** | **Vorlage löschen** nach Bestätigung → Papierkorb (F-31). Bereits gestartete Durchführungen bleiben unverändert. |
@@ -71,10 +71,11 @@ Eine Web-App, mit der jeder Nutzer **Vorlagen** für Checklisten pflegt und dara
 |---|---|
 | **F-20** | **Startseite „Aktuelle Durchführungen“:** zeigt aktive Durchführungen mit Titel, Fortschrittsbalken (x von y erledigt) und letzter Änderung. Keine Vorlagen, keine archivierten. Suche. **Geteilt-Kennzeichnung:** Geteilte Durchführungen tragen ein gut sichtbares Symbol/Badge „Geteilt“ (mit Berechtigung und Zugriffsart, z. B. „Geteilt · bearbeiten · Passwort“), nicht geteilte nicht. Filter „Alle / Geteilt / Nicht geteilt“. |
 | **F-21** | **Plus-Button** auf der Startseite: Dialog zum Anlegen einer Durchführung mit Titel und **Auswahl einer oder mehrerer Vorlagen** (Mehrfachauswahl mit Suche und Tag-Filter). Auch ohne Vorlage möglich (leere Durchführung). Gewählte Vorlagen werden als **Abschnitte** kopiert; Reihenfolge der Abschnitte = Auswahlreihenfolge. |
-| **F-22** | **Vorlagen nachträglich ergänzen:** In einer Durchführung Button „Vorlage hinzufügen“ → Auswahl einer oder mehrerer Vorlagen → neue Abschnitte werden angehängt. Dieselbe Vorlage kann mehrfach hinzugefügt werden. Nur bei aktiven Durchführungen. |
-| **F-23** | **Durchführungsansicht:** Abschnitte (Titel = Vorlagenname) mit Punkten als verschachtelter Baum, Checkbox je Punkt, auf-/zuklappbar. Fortschritt je Abschnitt und gesamt. |
+| **F-22** | **Vorlagen nachträglich ergänzen:** In einer Durchführung Button „Vorlage hinzufügen“ → Auswahl einer oder mehrerer Vorlagen → sie werden als Überpunkte (mit ihren Punkten darunter) angehängt. Dieselbe Vorlage darf mehrfach vorkommen. |
+| **F-23** | **Durchführungsansicht:** Punkte als verschachtelter Baum, Checkbox je Punkt. **Abhaken ist verknüpft:** Überpunkt abhaken hakt alle Unterpunkte ab (und umgekehrt); sind alle Unterpunkte erledigt, ist der Überpunkt erledigt. **Fortschritt (x/y) zählt nur die direkte Ebene** (Unterpunkte am Überpunkt, oberste Ebene gesamt). |
 | **F-24** | **Abhaken** speichert sofort mit Zeitstempel. Abhaken eines Elternpunkts ist unabhängig von den Unterpunkten; am Elternpunkt wird deren Fortschritt (x/y) angezeigt. |
-| **F-25** | **Eigene Punkte** in einer Durchführung hinzufügen, bearbeiten, löschen, umsortieren (Vorlage bleibt unverändert). Einzelne Abschnitte entfernen. |
+| **F-25** | **Eigene Punkte** in einer Durchführung hinzufügen, bearbeiten, löschen, umsortieren und verschachteln (Vorlage bleibt unverändert). |
+| **F-18a** | **Vorlage in Vorlage:** Eine Vorlage kann andere eigene Vorlagen **per Verweis** enthalten (deren Punkte erscheinen als Unterpunkte; Änderungen gelten überall). Kreise sind verboten. Beim Löschen einer verwendeten Vorlage fragt die Oberfläche „wird in x Vorlagen verwendet, die Punkte verschwinden dort – sicher?“. Beim Starten einer Durchführung und beim Export werden Verweise aufgelöst (Kopie). |
 | **F-26** | **Änderungen an Vorlagen** wirken nicht rückwirkend auf bestehende Durchführungen (Momentaufnahme). Der Abschnitt merkt sich den Verweis auf die Quellvorlage (nur zur Anzeige). |
 | **F-27** | **Durchführung umbenennen** und löschen (→ Papierkorb nach Bestätigung). |
 
@@ -103,7 +104,7 @@ Eine Web-App, mit der jeder Nutzer **Vorlagen** für Checklisten pflegt und dara
 | ID | Anforderung |
 |---|---|
 | **F-50** | **Export** einzelner Vorlagen/Durchführungen oder aller eigenen Daten (ohne Papierkorb) als **JSON** (vollständig, inkl. Unterpunkte und Tags mit Farbe; ohne IDs, Freigabelinks und Geheimnisse) sowie einzelne Vorlagen/Durchführungen als **CSV** (Trennzeichen Komma/Semikolon/Tab, UTF-8 mit BOM, Schutz vor Formel-Injektion) und **Markdown** (lesbar/druckbar, Durchführungen mit Kontrollkästchen). Download mit sicherem Dateinamen. |
-| **F-51** | **Import** von JSON (Round-Trip des Exports) und CSV (Spalten: Vorlage, Ebene/Eltern, Titel, Beschreibung). Mit **Vorschau** (`dryRun`: Zählung, Inhalt, neue/vorhandene Tags) und **Fehlermeldungen je Zeile bzw. JSON-Pfad**; alles oder nichts; Import erzeugt immer neue Datensätze (kein Überschreiben/Zusammenführen); Tags werden ohne Beachtung der Schreibweise wiederverwendet, neue erhalten Farbe automatisch. Grenzen: 2000 Vorlagen, 2000 Durchführungen, 50 000 Punkte, 12 MB. Dient auch der Migration aus der Mendix-App (Grid-Export als CSV, alternative Spaltennamen werden erkannt). |
+| **F-51** | **Import** von JSON (Round-Trip des Exports) und CSV (Spalten: Vorlage, Ebene/Eltern, Titel). Mit **Vorschau** (`dryRun`: Zählung, Inhalt, neue/vorhandene Tags) und **Fehlermeldungen je Zeile bzw. JSON-Pfad**; alles oder nichts; Import erzeugt immer neue Datensätze (kein Überschreiben/Zusammenführen); Tags werden ohne Beachtung der Schreibweise wiederverwendet, neue erhalten Farbe automatisch. Grenzen: 2000 Vorlagen, 2000 Durchführungen, 50 000 Punkte, 12 MB. Dient auch der Migration aus der Mendix-App (Grid-Export als CSV, alternative Spaltennamen werden erkannt). |
 | **F-52** | ~~Konto-Export (DSGVO)~~ entfällt. Im Profil gibt es nur den Export aller Vorlagen und den Import von Vorlagen (Checklisten werden nicht importiert). Konto-Löschung mit allen Daten (F-05). |
 
 ### 3.7 API und Tokens
@@ -115,7 +116,7 @@ Eine Web-App, mit der jeder Nutzer **Vorlagen** für Checklisten pflegt und dara
 | **F-62** | Authentifizierung per `Authorization: Bearer <token>`. Tokens handeln immer als der besitzende Nutzer und sehen nur dessen Daten. Token mit Recht *lesen* dürfen nur GET-Anfragen (`403 token_read_only`). **Konto-, Passwort- und Token-Verwaltung ist nur mit Browser-Sitzung möglich** (`403 session_required`). Ein ungültiger oder abgelaufener Token führt immer zu `401` (kein Rückfall auf ein Cookie). Rate-Limit pro Token (`API_RATE_LIMIT_PER_MINUTE`, Standard 120, `429` mit `Retry-After`). |
 | **F-63** | **MCP-Server** (Model Context Protocol, Streamable HTTP) unter `/mcp`, damit KI-Assistenten (z. B. Claude) Vorlagen und Durchführungen lesen, erstellen und bearbeiten können. Authentifizierung ausschließlich per API-Token (F-61/F-62), nie per Cookie; der Server handelt als der Token-Besitzer und sieht nur dessen Daten (N-04). Zustandslos (kein Server-Push, keine Sitzungen; `GET`/`DELETE` → `405`). Anfragen mit fremdem `Origin`-Header werden abgewiesen (Schutz vor DNS-Rebinding). |
 | **F-64** | **Lesende MCP-Tools:** `list_templates` (Suche, Tag-Filter), `get_template` (inkl. Punktebaum), `list_runs` (aktiv/archiviert, Suche), `get_run` (Abschnitte, Punktebaum, Fortschritt), `list_tags`. |
-| **F-65** | **Schreibende MCP-Tools:** `create_template`, `update_template` (Titel, Beschreibung, Tags), `add_template_item`, `update_template_item`, `move_template_item`, `create_run` (aus einer oder mehreren Vorlagen), `add_templates_to_run`, `add_run_section` (eigener leerer Abschnitt), `add_run_item`, `update_run_item` (Titel, Beschreibung, abhaken/zurücknehmen), `move_run_item`, `create_tag` (Farbe automatisch). Die Werkzeuge rufen intern die REST-API auf; damit gelten garantiert dieselben Regeln wie in der Oberfläche (Validierung, Mandantentrennung, Tiefe, Zyklen, archivierte Durchführungen schreibgeschützt). **Bewusst nicht per MCP:** Löschen, Archivieren/Abschließen, Teilen, Konto- und Token-Verwaltung, Import/Export. |
+| **F-65** | **Schreibende MCP-Tools:** `create_template`, `update_template` (Titel, Tags), `add_template_item`, `update_template_item`, `move_template_item`, `create_run` (aus einer oder mehreren Vorlagen), `add_templates_to_run`, `add_run_section` (eigener leerer Abschnitt), `add_run_item`, `update_run_item` (Titel, abhaken/zurücknehmen), `move_run_item`, `create_tag` (Farbe automatisch). Die Werkzeuge rufen intern die REST-API auf; damit gelten garantiert dieselben Regeln wie in der Oberfläche (Validierung, Mandantentrennung, Tiefe, Zyklen, archivierte Durchführungen schreibgeschützt). **Bewusst nicht per MCP:** Löschen, Archivieren/Abschließen, Teilen, Konto- und Token-Verwaltung, Import/Export. |
 | **F-66** | **Rechte und Nachvollziehbarkeit:** Token mit Recht *lesen* sehen und nutzen nur lesende Tools, schreibende Tools erfordern *lesen+schreiben*. Jeder Tool-Aufruf wird im Docker-Log protokolliert (`mcp_tool_call`, F-37, nur Werkzeugname, Ergebnis und Token-ID – keine Inhalte), jede MCP-Anfrage zählt einmal gegen das Rate-Limit (F-62) und Fehler enthalten Code und Hinweis. Die öffentliche Konfiguration (`GET /api/v1/config`) nennt die `mcpUrl`; im Profil steht eine kopierbare MCP-Konfiguration (URL, Hinweis auf Token) bereit (Oberfläche, Schritt 12). |
 
 ### 3.8 Oberfläche und Betrieb
@@ -148,10 +149,10 @@ ApiToken        id, user_id → User, name, token_prefix, token_hash,
 
 Tag             id, user_id → User, name (unique je Nutzer), color (#RRGGBB)
 
-Template        id, owner_id → User, title, description,
+Template        id, owner_id → User, title,
                 created_at, updated_at, deleted_at
 TemplateItem    id, template_id → Template, parent_item_id → TemplateItem (null = oberste Ebene),
-                title, description, position
+                title, position
 TemplateTag     template_id → Template, tag_id → Tag
 
 Run             id, owner_id → User, title,
@@ -161,7 +162,7 @@ Run             id, owner_id → User, title,
 RunSection      id, run_id → Run, source_template_id → Template (null erlaubt),
                 title (Kopie des Vorlagennamens), position
 RunItem         id, section_id → RunSection, parent_item_id → RunItem (null = oberste Ebene),
-                title, description, position,
+                title, position,
                 is_checked (default false), checked_at
 
 RunShare        id, run_id → Run, token_hash, token_enc (verschlüsselt, für „Link kopieren“),
@@ -245,8 +246,7 @@ Regeln:
 | POST/PUT/DELETE | `/templates/:id/items`, `/template-items/:id`; POST `/template-items/:id/move` | F-13, F-14 |
 | POST, PUT | `/templates`, `/templates/:id` mit optionalem `items` (ganzer Punktebaum, ersetzt beim Ändern alle Punkte; Oberfläche speichert so in einem Schritt) | F-12 bis F-14 |
 | GET/POST | `/runs?status=active\|archived` | F-20, F-21, F-30 |
-| POST | `/runs/:id/sections` (Body: Vorlagen-IDs) | F-22 |
-| POST/DELETE | `/runs/:id/sections`, `/run-sections/:id`; POST `/run-sections/:id/move`, `/run-sections/:id/items` | F-22, F-25 |
+| POST | `/runs/:id/templates` (Body: Vorlagen-IDs), `/runs/:id/items` | F-22, F-25 |
 | PUT/DELETE | `/run-items/:id` (u. a. `isChecked`); POST `/run-items/:id/move` | F-24, F-25 |
 | POST | `/runs/:id/complete` (= Papierkorb), `/archive`, `/reopen` | F-28, F-30 |
 | GET/PUT/DELETE | `/runs/:id/share`; POST `/runs/:id/share/regenerate` | F-40…F-43 |

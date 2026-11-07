@@ -20,7 +20,7 @@ export const allExportQuery = z.object({
 });
 export const importBody = z.object({
   format: z.enum(["json", "csv"]),
-  /** JSON: Text oder Objekt im Export-Format · CSV: Text mit den Spalten Vorlage, Ebene, Titel, Beschreibung */
+  /** JSON: Text oder Objekt im Export-Format · CSV: Text mit den Spalten Vorlage, Ebene, Titel */
   content: z.union([z.string().max(10_000_000), z.record(z.string(), z.unknown())]),
   /** Nur CSV ohne Spalte „Vorlage“: Name der Vorlage, in die alle Zeilen importiert werden */
   title: z.string().trim().min(1).max(200).optional(),

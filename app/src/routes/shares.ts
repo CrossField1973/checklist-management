@@ -27,9 +27,8 @@ export const tokenParams = z.object({ token: z.string().min(10).max(100) });
 const itemParams = tokenParams.extend({ itemId: id });
 const sectionParams = tokenParams.extend({ sectionId: id });
 export const title = z.string().trim().min(1).max(200);
-export const description = z.string().max(5000).nullable();
-export const itemCreate = z.object({ title, description: description.optional(), parentItemId: id.nullable().optional(), position: z.number().int().min(0).optional() });
-export const itemUpdate = z.object({ title: title.optional(), description: description.optional(), isChecked: z.boolean().optional() })
+export const itemCreate = z.object({ title, parentItemId: id.nullable().optional(), position: z.number().int().min(0).optional() });
+export const itemUpdate = z.object({ title: title.optional(), isChecked: z.boolean().optional() })
   .refine((b) => Object.keys(b).length > 0, "Keine Änderungen übergeben");
 export const itemMove = z.object({ sectionId: id.optional(), parentItemId: id.nullable(), position: z.number().int().min(0) });
 
