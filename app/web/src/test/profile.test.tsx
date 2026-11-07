@@ -15,8 +15,8 @@ function profileApi(opts: Parameters<typeof mockApi>[0] = {}) {
   return api;
 }
 const section = (name: string) => screen.getByRole("region", { name });
-const openProfile = async () => {
-  const r = renderApp("/profile");
+const openProfile = async (sectionId = "account") => {
+  const r = renderApp(`/profile?section=${sectionId}`);
   await screen.findByRole("heading", { name: "Profil", level: 1 });
   return r;
 };
@@ -25,32 +25,77 @@ const openProfile = async () => {
 const clipboardText = () => navigator.clipboard.readText();
 
 describe("Profil: Konto (F-05)", () => {
-  it("zeigt alle Bereiche des Profils", async () => {
+  it("zeigt links die Bereiche und rechts nur den gewählten Inhalt", async () => {
     profileApi();
-    await openProfile();
-    for (const name of ["Konto", "Passwort ändern", "Zwei-Faktor-Anmeldung", "API-Token", "Geteilte Checklisten", "Daten", "Konto löschen"]) {
-      expect(screen.getByRole("region", { name })).toBeInTheDocument();
+    const { ui } = await openProfile();
+    const nav = within(screen.getByRole("navigation", { name: "Profilbereiche" }));
+    expect(nav.queryByRole("button", { name: "Single Sign-on" })).not.toBeInTheDocument(); // SSO nicht konfiguriert
+    expect(screen.getByRole("region", { name: "Konto" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Zwei-Faktor-Anmeldung" })).not.toBeInTheDocument();
+    // „Konto“ enthält auch „Konto löschen“; „Sicherheit“ enthält Passwort ändern und Zwei-Faktor-Anmeldung
+    for (const name of ["Konto", "Konto löschen"]) expect(screen.getByRole("region", { name })).toBeInTheDocument();
+    for (const name of ["Passwort ändern", "Zwei-Faktor-Anmeldung", "Konto löschen"]) expect(nav.queryByRole("button", { name })).not.toBeInTheDocument();
+    for (const name of ["Darstellung", "Tags", "Sicherheit", "API-Token", "Geteilte Checklisten", "Tastenkürzel", "Daten"]) {
+      await ui.click(nav.getByRole("button", { name }));
+      expect(await screen.findByRole("region", { name: name === "Sicherheit" ? "Passwort ändern" : name })).toBeInTheDocument();
+      expect(nav.getByRole("button", { name })).toHaveAttribute("aria-current", "page");
+      if (name === "Sicherheit") expect(await screen.findByRole("region", { name: "Zwei-Faktor-Anmeldung" })).toBeInTheDocument();
     }
-    expect(screen.queryByRole("region", { name: "Single Sign-on" })).not.toBeInTheDocument(); // SSO nicht konfiguriert
+    expect(screen.queryByRole("region", { name: "Konto" })).not.toBeInTheDocument();
   });
 
-  it("speichert Name, Sprache, Design und Papierkorb-Frist und wendet Sprache sofort an", async () => {
+  it("öffnet das Profil über den Benutzer unten links in der Navigation", async () => {
+    profileApi();
+    const r = renderApp("/");
+    await r.ui.click(await screen.findByRole("link", { name: "Profil öffnen" }));
+    expect(await screen.findByRole("heading", { name: "Profil", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Konto" })).toBeInTheDocument();
+  });
+
+  it("speichert Name, Sprache und Papierkorb-Frist und wendet die Sprache sofort an", async () => {
     const api = profileApi();
     api.on("PUT /me", ({ body }) => ({ body: { user: { ...USER, ...body } } }));
     const { ui } = await openProfile();
     const account = within(section("Konto"));
+    expect(account.queryByLabelText("Design")).not.toBeInTheDocument(); // liegt unter „Darstellung“
     await ui.clear(account.getByLabelText("Anzeigename"));
     await ui.type(account.getByLabelText("Anzeigename"), "Anna M.");
     await ui.selectOptions(account.getByLabelText("Sprache"), "en");
-    await ui.selectOptions(account.getByLabelText("Design"), "dark");
     await ui.selectOptions(account.getByLabelText("Papierkorb automatisch leeren nach"), "never");
     await ui.click(account.getByRole("button", { name: "Speichern" }));
 
-    expect(api.callsTo("PUT /me")[0]!.body).toEqual({ displayName: "Anna M.", language: "en", theme: "dark", trashRetentionDays: null });
-    // die Oberfläche wechselt sofort in die gewählte Sprache und das gewählte Design
+    expect(api.callsTo("PUT /me")[0]!.body).toEqual({ displayName: "Anna M.", language: "en", trashRetentionDays: null });
+    // die Oberfläche wechselt sofort in die gewählte Sprache
     expect(await screen.findByRole("button", { name: "Sign out" })).toBeInTheDocument();
-    expect(document.documentElement.dataset.theme).toBe("dark");
     expect(screen.getByRole("heading", { name: "Profile", level: 1 })).toBeInTheDocument();
+  });
+
+  it("Darstellung: Design, Akzentfarbe, Schriftgröße und Erledigte ausblenden wirken sofort und werden im Konto gespeichert", async () => {
+    const api = profileApi();
+    api.on("PUT /me", ({ body }) => ({ body: { user: { ...USER, ...body } } }));
+    const { ui } = await openProfile("display");
+    const box = within(section("Darstellung"));
+    await ui.selectOptions(box.getByLabelText("Design"), "dark");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    await ui.click(box.getByRole("button", { name: "Petrol" }));
+    expect(document.documentElement.dataset.accent).toBe("teal");
+    expect(box.getByRole("button", { name: "Petrol" })).toHaveAttribute("aria-pressed", "true");
+    await ui.selectOptions(box.getByLabelText("Schriftgröße"), "large");
+    expect(document.documentElement.dataset.fontsize).toBe("large");
+    await ui.click(box.getByLabelText("Erledigte ausblenden"));
+    await waitFor(() => expect(api.callsTo("PUT /me")).toHaveLength(4));
+    expect(api.callsTo("PUT /me").map((c) => c.body)).toEqual([{ theme: "dark" }, { accent: "teal" }, { fontSize: "large" }, { hideDone: true }]);
+    await ui.click(box.getByRole("button", { name: "Blau" })); // Standard: Attribut entfällt
+    expect(document.documentElement.dataset.accent).toBeUndefined();
+  });
+
+  it("Darstellung: bei einem Fehler wird der alte Wert wiederhergestellt", async () => {
+    const api = profileApi();
+    api.on("PUT /me", () => apiError(500, "internal_error"));
+    const { ui } = await openProfile("display");
+    await ui.click(within(section("Darstellung")).getByRole("button", { name: "Violett" }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(document.documentElement.dataset.accent).toBeUndefined();
   });
 
   it("verlangt für eine neue E-Mail-Adresse das aktuelle Passwort und sendet es mit", async () => {
@@ -85,7 +130,7 @@ describe("Profil: Passwort ändern (F-06)", () => {
   it("prüft die Wiederholung lokal und ändert das Passwort", async () => {
     const api = profileApi();
     api.on("POST /me/password", () => ({ status: 204 }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("security");
     const pw = within(section("Passwort ändern"));
     await ui.type(pw.getByLabelText("Aktuelles Passwort"), "Kaffeetasse-Wolke-42");
     await ui.type(pw.getByLabelText("Neues Passwort"), "Ganz-neues-Passwort-77");
@@ -107,7 +152,7 @@ describe("Profil: Passwort ändern (F-06)", () => {
     api.on("POST /me/password", ({ body }) => body.currentPassword === "falsch"
       ? apiError(403, "invalid_current_password")
       : apiError(422, "password_policy", { problems: ["too_common", "contains_identity"] }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("security");
     const pw = within(section("Passwort ändern"));
     const fill = async (current: string) => {
       await ui.clear(pw.getByLabelText("Aktuelles Passwort"));
@@ -126,11 +171,12 @@ describe("Profil: Passwort ändern (F-06)", () => {
 
   it("erklärt Konten ohne Passwort (SSO), statt ein unbrauchbares Formular zu zeigen", async () => {
     profileApi({ user: { ...USER, hasPassword: false } });
-    await openProfile();
+    const { ui } = await openProfile("security");
     const pw = within(section("Passwort ändern"));
     expect(pw.getByRole("status")).toHaveTextContent("kein Passwort");
     expect(pw.queryByLabelText("Neues Passwort")).not.toBeInTheDocument();
-    const del = within(section("Konto löschen"));
+    await ui.click(screen.getByRole("button", { name: "Konto" }));
+    const del = within(await screen.findByRole("region", { name: "Konto löschen" }));
     expect(del.queryByRole("button", { name: /Konto löschen/ })).not.toBeInTheDocument();
   });
 });
@@ -140,7 +186,7 @@ describe("Profil: Zwei-Faktor-Anmeldung (F-08)", () => {
     const api = profileApi();
     api.on("POST /me/2fa/setup", () => ({ body: { secret: "JBSWY3DPEHPK3PXP", otpauthUrl: "otpauth://totp/Checklisten:anna%40example.org?secret=JBSWY3DPEHPK3PXP" } }));
     api.on("POST /me/2fa/enable", () => ({ body: { enabled: true, recoveryCodes: ["AAAAA-BBBBB", "CCCCC-DDDDD"], user: { ...USER, twoFactorEnabled: true } } }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("security");
     const tf = section("Zwei-Faktor-Anmeldung");
     await ui.click(await within(tf).findByRole("button", { name: "Einrichten" }));
 
@@ -180,7 +226,7 @@ describe("Profil: Zwei-Faktor-Anmeldung (F-08)", () => {
     const api = profileApi();
     api.on("POST /me/2fa/setup", () => ({ body: { secret: "JBSWY3DPEHPK3PXP", otpauthUrl: "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP" } }));
     api.on("POST /me/2fa/enable", () => apiError(422, "invalid_code"));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("security");
     await ui.click(await within(section("Zwei-Faktor-Anmeldung")).findByRole("button", { name: "Einrichten" }));
     const dialog = await screen.findByRole("dialog");
     await ui.type(within(dialog).getByLabelText("Passwort zur Bestätigung"), "x");
@@ -195,7 +241,7 @@ describe("Profil: Zwei-Faktor-Anmeldung (F-08)", () => {
     const api = profileApi({ user: { ...USER, twoFactorEnabled: true } });
     api.on("GET /me/2fa", () => ({ body: { enabled: true, enabledAt: 1, pendingSetup: false, recoveryCodesRemaining: 10 } }));
     api.on("POST /me/2fa/disable", () => ({ status: 204 }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("security");
     const tf = section("Zwei-Faktor-Anmeldung");
     expect(await within(tf).findByText(/Dir bleiben 10 Wiederherstellungscodes/)).toBeInTheDocument();
     await ui.click(within(tf).getByRole("button", { name: "Deaktivieren" }));
@@ -215,7 +261,7 @@ describe("Profil: Zwei-Faktor-Anmeldung (F-08)", () => {
     const api = profileApi({ user: { ...USER, twoFactorEnabled: true } });
     api.on("GET /me/2fa", () => ({ body: { enabled: true, enabledAt: 1, pendingSetup: false, recoveryCodesRemaining: 3 } }));
     api.on("POST /me/2fa/recovery-codes", () => ({ body: { recoveryCodes: ["NEUE1-NEUE2"] } }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("security");
     await ui.click(await within(section("Zwei-Faktor-Anmeldung")).findByRole("button", { name: "Neue Wiederherstellungscodes" }));
     const dialog = await screen.findByRole("dialog");
     await ui.type(within(dialog).getByLabelText("Passwort zur Bestätigung"), "pw");
@@ -231,7 +277,7 @@ describe("Profil: Single Sign-on (F-09)", () => {
   it("bietet das Verknüpfen als Seitenwechsel an, wenn noch nichts verknüpft ist", async () => {
     const api = profileApi({ config: sso });
     api.on("GET /me/sso", () => ({ body: { enabled: true, name: "Authentik", linked: false } }));
-    await openProfile();
+    await openProfile("sso");
     const link = await within(await screen.findByRole("region", { name: "Single Sign-on" })).findByRole("link", { name: "Mit Authentik verknüpfen" });
     expect(link).toHaveAttribute("href", "/api/v1/auth/oidc/login?link=1");
   });
@@ -240,7 +286,7 @@ describe("Profil: Single Sign-on (F-09)", () => {
     const api = profileApi({ config: sso });
     api.on("GET /me/sso", () => ({ body: { enabled: true, name: "Authentik", linked: true } }));
     api.on("POST /me/sso/unlink", () => ({ status: 204 }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("sso");
     const box = within(await screen.findByRole("region", { name: "Single Sign-on" }));
     expect(await box.findByRole("status")).toHaveTextContent("mit Authentik verknüpft");
     await ui.click(box.getByRole("button", { name: "Verknüpfung lösen" }));
@@ -265,7 +311,7 @@ describe("Profil: API-Token (F-61)", () => {
   it("listet Token mit Rechten, Ablauf und letzter Nutzung – nie den Token selbst", async () => {
     const api = profileApi();
     api.on("GET /me/tokens", () => ({ body: { tokens: [token(), token({ id: "t2", name: "Alt", permission: "write", expired: true, expiresAt: 5, lastUsedAt: 1_700_000_000_000 })] } }));
-    await openProfile();
+    await openProfile("tokens");
     const box = within(section("API-Token"));
     const items = await box.findAllByRole("listitem");
     expect(items).toHaveLength(2);
@@ -280,7 +326,7 @@ describe("Profil: API-Token (F-61)", () => {
   it("legt einen Token an, zeigt ihn genau einmal mit Warnung und lässt ihn kopieren", async () => {
     const api = profileApi();
     api.on("POST /me/tokens", () => ({ status: 201, body: { token: "ck_GEHEIMER_KLARTEXT_TOKEN", apiToken: token() } }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("tokens");
     await ui.click(within(section("API-Token")).getByRole("button", { name: "Token erstellen" }));
     const dialog = await screen.findByRole("dialog", { name: "Neuen API-Token erstellen" });
     const submit = within(dialog).getByRole("button", { name: "Erstellen" });
@@ -306,7 +352,7 @@ describe("Profil: API-Token (F-61)", () => {
   it("sendet ein Ablaufdatum als Ende des gewählten Tages", async () => {
     const api = profileApi();
     api.on("POST /me/tokens", () => ({ status: 201, body: { token: "ck_x", apiToken: token() } }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("tokens");
     await ui.click(within(section("API-Token")).getByRole("button", { name: "Token erstellen" }));
     const dialog = await screen.findByRole("dialog");
     await ui.type(within(dialog).getByLabelText(/^Name/), "Kurz");
@@ -322,7 +368,7 @@ describe("Profil: API-Token (F-61)", () => {
     const api = profileApi();
     api.on("GET /me/tokens", () => ({ body: { tokens: [token()] } }));
     api.on("DELETE /me/tokens/t1", () => ({ status: 204 }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("tokens");
     await ui.click(await within(section("API-Token")).findByRole("button", { name: "Token Skript widerrufen" }));
     const dialog = await screen.findByRole("dialog", { name: "Token widerrufen?" });
     expect(dialog).toHaveTextContent("Skript");
@@ -335,7 +381,7 @@ describe("Profil: API-Token (F-61)", () => {
 
   it("nennt die MCP-Adresse und bietet die Konfiguration zum Kopieren an", async () => {
     profileApi();
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("tokens");
     const box = within(section("API-Token"));
     await ui.click(box.getByText("KI-Assistenten anbinden (MCP)"));
     expect(box.getByTestId("mcp-url")).toHaveTextContent("http://localhost:3000/mcp");
@@ -353,7 +399,7 @@ describe("Profil: Geteilte Checklisten (F-45)", () => {
   it("listet Freigaben mit Zugriffsart und Berechtigung und kennzeichnet den Papierkorb", async () => {
     const api = profileApi();
     api.on("GET /me/shares", () => ({ body: { shares: [share(), share({ id: "s2", runId: "r2", runTitle: "Alt", access: "password", permission: "edit", runDeleted: true })] } }));
-    await openProfile();
+    await openProfile("shares");
     const items = await within(section("Geteilte Checklisten")).findAllByRole("listitem");
     expect(items[0]).toHaveTextContent("Ausflug Füssen");
     expect(items[0]).toHaveTextContent("Jeder mit dem Link · Nur ansehen");
@@ -365,7 +411,7 @@ describe("Profil: Geteilte Checklisten (F-45)", () => {
   it("kopiert den Link", async () => {
     const api = profileApi();
     api.on("GET /me/shares", () => ({ body: { shares: [share()] } }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("shares");
     await ui.click(await within(section("Geteilte Checklisten")).findByRole("button", { name: "Link kopieren" }));
     expect(await clipboardText()).toBe("http://localhost:3000/s/TOKEN123");
   });
@@ -374,7 +420,7 @@ describe("Profil: Geteilte Checklisten (F-45)", () => {
     const api = profileApi();
     api.on("GET /me/shares", () => ({ body: { shares: [share({ access: "password", permission: "view" })] } }));
     api.on("PUT /runs/r1/share", ({ body }) => ({ body: { share: body } }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("shares");
     await ui.click(await within(section("Geteilte Checklisten")).findByRole("button", { name: /Einstellungen für Ausflug Füssen/ }));
     const dialog = await screen.findByRole("dialog", { name: "Freigabe-Einstellungen" });
     expect(within(dialog).getByLabelText("Zugriff")).toHaveValue("password"); // aktuelle Werte sind vorbelegt
@@ -396,7 +442,7 @@ describe("Profil: Geteilte Checklisten (F-45)", () => {
     api.on("GET /me/shares", () => ({ body: { shares: [share(), share({ id: "s2", runId: "r2", runTitle: "Zweite" })] } }));
     api.on("DELETE /me/shares/s1", () => ({ status: 204 }));
     api.on("DELETE /me/shares", () => ({ body: { revoked: 2 } }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("shares");
     const box = within(section("Geteilte Checklisten"));
     await ui.click(await box.findByRole("button", { name: "Freigabe von Ausflug Füssen zurückziehen" }));
     const one = await screen.findByRole("dialog", { name: "Teilen zurückziehen?" });
@@ -418,7 +464,7 @@ describe("Profil: Daten (F-50 bis F-52)", () => {
     api.on("POST /import", ({ body }) => body.dryRun
       ? { body: { valid: true, issues: [], warnings: [], counts: { templates: 1, runs: 0, items: 2 }, preview: { templates: [{ title: "Packliste", itemCount: 2, tags: [], sample: ["a", "b"] }], runs: [], tags: { new: ["Reisen"], existing: [] } } } }
       : { status: 201, body: { result: { templates: 1, runs: 0, items: 2, tagsCreated: 1, tagsReused: 0 }, warnings: [] } });
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("data");
     const box = within(section("Daten"));
     expect(box.queryByRole("button", { name: "Jetzt importieren" })).not.toBeInTheDocument();
     const check = box.getByRole("button", { name: "Prüfen" });
@@ -426,14 +472,14 @@ describe("Profil: Daten (F-50 bis F-52)", () => {
     await ui.click(box.getByLabelText("Oder Inhalt einfügen"));
     await ui.paste('{"templates":[{"title":"Packliste"}]}');
     await ui.click(check);
-    expect(await box.findByText(/Bereit zum Import: 1 Vorlagen, 0 Checklisten, 2 Punkte\./)).toBeInTheDocument();
+    expect(await box.findByText(/Bereit zum Import: 1 Vorlagen, 2 Punkte\./)).toBeInTheDocument();
     expect(box.getByText(/Vorlage „Packliste“ \(2 Punkte\)/)).toBeInTheDocument();
     expect(box.getByText("Neue Tags: Reisen")).toBeInTheDocument();
-    expect(api.callsTo("POST /import")[0]!.body).toMatchObject({ format: "json", dryRun: true });
+    expect(api.callsTo("POST /import")[0]!.body).toMatchObject({ format: "json", dryRun: true, templatesOnly: true });
     expect(api.callsTo("POST /import")).toHaveLength(1); // die Vorschau legt nichts an
 
     await ui.click(box.getByRole("button", { name: "Jetzt importieren" }));
-    expect(await box.findByText("Importiert: 1 Vorlagen, 0 Checklisten, 2 Punkte.")).toBeInTheDocument();
+    expect(await box.findByText("Importiert: 1 Vorlagen, 2 Punkte.")).toBeInTheDocument();
     expect(api.callsTo("POST /import")[1]!.body).toMatchObject({ dryRun: false });
     expect(box.getByLabelText("Oder Inhalt einfügen")).toHaveValue(""); // Eingabe geleert
   });
@@ -441,7 +487,7 @@ describe("Profil: Daten (F-50 bis F-52)", () => {
   it("zeigt Fehler der Vorschau mit Pfad bzw. Zeile und blockiert den Import", async () => {
     const api = profileApi();
     api.on("POST /import", () => ({ body: { valid: false, issues: [{ path: "Zeile 3", message: "Titel fehlt" }, { path: "templates[0].title", message: "darf nicht leer sein" }], warnings: [] } }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("data");
     const box = within(section("Daten"));
     await ui.selectOptions(box.getByLabelText("Format"), "csv");
     await ui.click(box.getByLabelText("Oder Inhalt einfügen"));
@@ -458,7 +504,7 @@ describe("Profil: Daten (F-50 bis F-52)", () => {
   it("verlangt bei CSV optional einen Vorlagennamen und sendet ihn mit", async () => {
     const api = profileApi();
     api.on("POST /import", () => ({ body: { valid: false, issues: [], warnings: [] } }));
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("data");
     const box = within(section("Daten"));
     expect(box.queryByLabelText(/Name der Vorlage/)).not.toBeInTheDocument(); // nur bei CSV
     await ui.selectOptions(box.getByLabelText("Format"), "csv");
@@ -474,15 +520,13 @@ describe("Profil: Daten (F-50 bis F-52)", () => {
     const api = profileApi();
     const files: string[] = [];
     api.on("GET /export", () => ({ body: { format: "checklisten-export" } }));
-    api.on("GET /me/export", () => ({ body: { account: {} } }));
     URL.createObjectURL = vi.fn(() => "blob:test");
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { files.push(this.download); });
-    const { ui } = await openProfile();
+    const { ui } = await openProfile("data");
     const box = within(section("Daten"));
-    await ui.click(box.getByRole("button", { name: "Alle Daten exportieren (JSON)" }));
-    await ui.click(box.getByRole("button", { name: "Konto-Export (DSGVO)" }));
-    await waitFor(() => expect(files).toEqual(["checklisten-daten.json", "konto-export.json"]));
+    await ui.click(box.getByRole("button", { name: "Alle Vorlagen exportieren (JSON)" }));
+    await waitFor(() => expect(files).toEqual(["vorlagen.json"]));
     click.mockRestore();
   });
 });
@@ -522,5 +566,14 @@ describe("Profil: Konto löschen (F-52)", () => {
     await ui.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Abbrechen" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(api.callsTo("DELETE /me")).toHaveLength(0);
+  });
+});
+
+describe("Profil: Tastenkürzel", () => {
+  it("zeigt die Übersicht aller Kürzel", async () => {
+    profileApi();
+    await openProfile("shortcuts");
+    const box = within(section("Tastenkürzel"));
+    for (const key of ["Strg + S", "N", "/", "?", "Esc"]) expect(box.getByText(key)).toBeInTheDocument();
   });
 });

@@ -104,7 +104,7 @@ Eine Web-App, mit der jeder Nutzer **Vorlagen** für Checklisten pflegt und dara
 |---|---|
 | **F-50** | **Export** einzelner Vorlagen/Durchführungen oder aller eigenen Daten (ohne Papierkorb) als **JSON** (vollständig, inkl. Unterpunkte und Tags mit Farbe; ohne IDs, Freigabelinks und Geheimnisse) sowie einzelne Vorlagen/Durchführungen als **CSV** (Trennzeichen Komma/Semikolon/Tab, UTF-8 mit BOM, Schutz vor Formel-Injektion) und **Markdown** (lesbar/druckbar, Durchführungen mit Kontrollkästchen). Download mit sicherem Dateinamen. |
 | **F-51** | **Import** von JSON (Round-Trip des Exports) und CSV (Spalten: Vorlage, Ebene/Eltern, Titel, Beschreibung). Mit **Vorschau** (`dryRun`: Zählung, Inhalt, neue/vorhandene Tags) und **Fehlermeldungen je Zeile bzw. JSON-Pfad**; alles oder nichts; Import erzeugt immer neue Datensätze (kein Überschreiben/Zusammenführen); Tags werden ohne Beachtung der Schreibweise wiederverwendet, neue erhalten Farbe automatisch. Grenzen: 2000 Vorlagen, 2000 Durchführungen, 50 000 Punkte, 12 MB. Dient auch der Migration aus der Mendix-App (Grid-Export als CSV, alternative Spaltennamen werden erkannt). |
-| **F-52** | **Kompletter Daten-Export des Kontos** (DSGVO; nur Browser-Sitzung): zusätzlich Profil, Papierkorb, Freigabe-Einstellungen und Token-Metadaten – nie Passwörter, Token, Freigabelinks, 2FA-Secrets. Konto-Löschung mit allen Daten (F-05). |
+| **F-52** | ~~Konto-Export (DSGVO)~~ entfällt. Im Profil gibt es nur den Export aller Vorlagen und den Import von Vorlagen (Checklisten werden nicht importiert). Konto-Löschung mit allen Daten (F-05). |
 
 ### 3.7 API und Tokens
 
@@ -243,6 +243,7 @@ Regeln:
 | GET/POST/PUT/DELETE | `/tags` | F-17 |
 | GET/POST; GET/PUT/DELETE | `/templates`; `/templates/:id` | F-11…F-16 |
 | POST/PUT/DELETE | `/templates/:id/items`, `/template-items/:id`; POST `/template-items/:id/move` | F-13, F-14 |
+| POST, PUT | `/templates`, `/templates/:id` mit optionalem `items` (ganzer Punktebaum, ersetzt beim Ändern alle Punkte; Oberfläche speichert so in einem Schritt) | F-12 bis F-14 |
 | GET/POST | `/runs?status=active\|archived` | F-20, F-21, F-30 |
 | POST | `/runs/:id/sections` (Body: Vorlagen-IDs) | F-22 |
 | POST/DELETE | `/runs/:id/sections`, `/run-sections/:id`; POST `/run-sections/:id/move`, `/run-sections/:id/items` | F-22, F-25 |
@@ -251,7 +252,7 @@ Regeln:
 | GET/PUT/DELETE | `/runs/:id/share`; POST `/runs/:id/share/regenerate` | F-40…F-43 |
 | GET/DELETE | `/me/shares`, `/me/shares/:id` | F-45 |
 | GET; PUT/DELETE `…/items/:itemId`; POST `…/sections/:sectionId/items`, `…/items/:itemId/move` | `/public/runs/:token` (Passwort per Header `X-Share-Password`; Bearbeiten nur bei Berechtigung „bearbeiten“) | F-40…F-44 |
-| GET | `/export`, `/templates/:id/export`, `/runs/:id/export`, `/me/export` | F-50, F-52 |
+| GET | `/export`, `/templates/:id/export`, `/runs/:id/export` | F-50, F-52 |
 | POST | `/import` (`dryRun` für Vorschau) | F-51 |
 | GET/POST/DELETE | `/trash`, `/trash/:type/:id/restore`, `DELETE /trash` | F-31 |
 

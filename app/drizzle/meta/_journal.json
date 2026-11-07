@@ -22,6 +22,13 @@
       "when": 1793911717091,
       "tag": "0002_two_factor",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794050479931,
+      "tag": "0003_strong_blonde_phantom",
+      "breakpoints": true
     }
   ]
 }

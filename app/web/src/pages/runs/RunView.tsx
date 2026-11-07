@@ -2,9 +2,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, ApiError } from "../../api/client";
+import { api, ApiError, downloadFile } from "../../api/client";
 import type { RunDetail, RunItemNode, RunSection } from "../../api/types";
 import { Alert, Button, Dialog, Spinner, TextInput, useErrorText } from "../../components/ui";
+import { useAuth } from "../../auth/AuthProvider";
+import { ExportDialog } from "../../components/ExportDialog";
+import { DownloadIcon } from "../../components/icons";
+import { moveBetweenSections } from "../../lib/tree";
 import { enqueue } from "../../offline/queue";
 import { ProgressBar, RunBoard, type BoardActions } from "./RunBoard";
 import { ShareBadgeView } from "./RunsPage";
@@ -26,7 +30,7 @@ const withTempItem = (run: RunDetail, sectionId: string, parentItemId: string | 
 };
 const isOffline = (err: unknown) => err instanceof ApiError && err.status === 0;
 
-type Dlg = "share" | "templates" | "section" | "finish" | null;
+type Dlg = "share" | "templates" | "section" | "finish" | "export" | null;
 
 /** F-23 bis F-30: Durchführung ansehen, abhaken, ergänzen, teilen, abschließen oder archivieren. */
 export default function RunView() {
@@ -43,8 +47,7 @@ export default function RunView() {
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const [sectionTitle, setSectionTitle] = useState("");
-  const [hideDone, setHideDone] = useState(() => { try { return localStorage.getItem("hideDone") === "1"; } catch { return false; } });
-  const toggleHideDone = (v: boolean) => { setHideDone(v); try { localStorage.setItem("hideDone", v ? "1" : "0"); } catch { /* ohne Speicher: nur für diese Sitzung */ } };
+  const hideDone = useAuth().user?.hideDone ?? false; // Einstellung im Profil (Darstellung)
 
   const run = q.data;
   const readOnly = run?.status !== "active";
@@ -76,7 +79,27 @@ export default function RunView() {
     }),
     onDelete: (item) => call(() => api.del(`/run-items/${item.id}`)),
     onDeleteSection: (s: RunSection) => call(() => api.del(`/run-sections/${s.id}`)),
+    // Verschieben: sofort lokal zeigen, die Antwort des Servers (inkl. Fortschritt) ersetzt den Zwischenstand
+    onMoveItem: async (item, target) => {
+      qc.setQueryData<RunDetail>(key, (old) => {
+        const sections = old && moveBetweenSections(old.sections, item.id, target);
+        return old && sections ? { ...old, sections } : old;
+      });
+      await call(() => api.post(`/run-items/${item.id}/move`, target));
+    },
+    onMoveSection: async (section, position) => {
+      qc.setQueryData<RunDetail>(key, (old) => {
+        if (!old) return old;
+        const rest = old.sections.filter((s) => s.id !== section.id);
+        rest.splice(Math.min(Math.max(position, 0), rest.length), 0, section);
+        return { ...old, sections: rest.map((s, i) => ({ ...s, position: i })) };
+      });
+      await call(() => api.post(`/run-sections/${section.id}/move`, { position }));
+    },
   };
+
+  const download = (format: string, delimiter?: string, name = "checkliste") =>
+    downloadFile(`/runs/${id}/export?format=${format}${delimiter ? `&delimiter=${delimiter}` : ""}`, name).catch((err) => setError(errorText(err)));
 
   async function addTemplates() {
     setBusy(true);
@@ -120,7 +143,7 @@ export default function RunView() {
 
   return (
     <>
-      <p className="mt-0"><Link to={r.status === "archived" ? "/archive" : "/"}>← {r.status === "archived" ? t("nav.archive") : t("nav.runs")}</Link></p>
+      <p className="no-print mt-0"><Link to={r.status === "archived" ? "/archive" : "/"}>← {r.status === "archived" ? t("nav.archive") : t("nav.runs")}</Link></p>
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <h1 className="m-0 min-w-0 flex-1 break-words text-2xl font-semibold">{r.title}</h1>
         <ShareBadgeView share={r.share} />
@@ -128,32 +151,38 @@ export default function RunView() {
       </div>
       <div className="mb-4"><ProgressBar progress={r.progress} label={t("runs.progressOf", { title: r.title })} /></div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="no-print mb-4 flex flex-wrap gap-2">
         {r.status === "active" ? (
           <>
             <Button onClick={() => setDlg("templates")}>＋ {t("runs.addTemplates")}</Button>
             <Button onClick={() => setDlg("section")}>＋ {t("runs.addSection")}</Button>
             <Button onClick={() => setDlg("share")}>{t("runs.share")}</Button>
+            <Button onClick={() => setDlg("export")}>{t("editor.export")} <DownloadIcon /></Button>
             <Button variant="primary" onClick={() => setDlg("finish")}>{t("runs.finish")}</Button>
           </>
         ) : (
-          <Button onClick={() => void reopen()}>{t("runs.reopen")}</Button>
+          <>
+            <Button onClick={() => void reopen()}>{t("runs.reopen")}</Button>
+            <Button onClick={() => setDlg("export")}>{t("editor.export")} <DownloadIcon /></Button>
+          </>
         )}
       </div>
 
       {r.status === "active" && r.progress.total > 0 && r.progress.done === r.progress.total && (
         <div className="mb-3"><Alert kind="ok"><strong>{t("runs.allDone")}</strong> {t("runs.allDoneText")}</Alert></div>
       )}
-      {r.progress.total > 0 && (
-        <label className="mb-3 flex w-fit cursor-pointer items-center gap-2 text-sm">
-          <input type="checkbox" className="h-4 w-4" checked={hideDone} onChange={(e) => toggleHideDone(e.target.checked)} /> {t("runs.hideDone")}
-        </label>
-      )}
       {readOnly && <div className="mb-3"><Alert kind="info">{t("runs.readOnly")}</Alert></div>}
       {notice && <div className="mb-3"><Alert kind="ok">{notice}</Alert></div>}
       {error && <div className="mb-3"><Alert kind="error">{error}</Alert></div>}
 
       <RunBoard sections={r.sections} readOnly={readOnly} hideDone={hideDone} actions={actions} />
+
+      <ExportDialog open={dlg === "export"} onClose={() => setDlg(null)} title={t("editor.export")} options={[
+        { id: "json", label: "JSON", hint: t("runs.exportJsonHint"), run: () => download("json", undefined, "checkliste.json") },
+        { id: "csv", label: "CSV", hint: t("runs.exportCsvHint"), run: () => download("csv", "semicolon", "checkliste.csv") },
+        { id: "md", label: "Markdown", hint: t("runs.exportMdHint"), run: () => download("md", undefined, "checkliste.md") },
+        { id: "print", label: t("runs.print"), hint: t("runs.exportPrintHint"), run: () => { setTimeout(() => window.print(), 100); } },
+      ]} />
 
       <ShareDialog runId={id} open={dlg === "share"} onClose={() => setDlg(null)} />
 

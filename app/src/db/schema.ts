@@ -20,6 +20,9 @@ export const users = sqliteTable("users", {
   passwordHash: text("password_hash"), // null bei reinem SSO
   language: text("language", { enum: ["de", "en"] }).notNull().default("de"),
   theme: text("theme", { enum: ["light", "dark", "system"] }).notNull().default("system"),
+  accent: text("accent", { enum: ["blue", "indigo", "violet", "rose", "orange", "green", "teal", "slate"] }).notNull().default("blue"),
+  fontSize: text("font_size", { enum: ["normal", "large", "xlarge"] }).notNull().default("normal"),
+  hideDone: integer("hide_done", { mode: "boolean" }).notNull().default(false), // erledigte Punkte in Checklisten ausblenden
   trashRetentionDays: integer("trash_retention_days"), // null = nie
   totpSecret: text("totp_secret"), // verschlüsselt gespeichert
   totpEnabledAt: integer("totp_enabled_at"), // null = nicht aktiv (Secret nur vorläufig, falls gesetzt)

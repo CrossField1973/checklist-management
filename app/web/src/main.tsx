@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router";
+import { RouterProvider, createBrowserRouter } from "react-router";
 import App from "./App";
 import { AuthProvider } from "./auth/AuthProvider";
 import "./i18n";
@@ -18,14 +18,13 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => void navigator.serviceWorker.register("/sw.js").catch(() => undefined));
 }
 
+// Datenrouter (statt BrowserRouter): nötig, um das Verlassen einer Seite mit ungespeicherten Änderungen abzufangen (useBlocker)
+const router = createBrowserRouter([{ path: "*", element: <AuthProvider><App /></AuthProvider> }]);
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </QueryClientProvider>
   </StrictMode>,
 );

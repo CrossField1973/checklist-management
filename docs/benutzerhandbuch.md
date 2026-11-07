@@ -14,7 +14,7 @@ Wiederholte Fehlversuche sperren die Anmeldung zeitweise (die Meldung nennt die 
 
 ## Oberfläche
 
-Links die Navigation (auf dem Smartphone hinter „Menü“): *Meine Checklisten*, *Vorlagen*, *Archiv*, *Papierkorb*, *Profil*. Die Seite ist für Smartphone, Tablet und Desktop ausgelegt, per Tastatur bedienbar (Sprunglink „Zum Inhalt springen“, sichtbarer Fokus) und passt sich dem hellen oder dunklen Design an.
+Links die Navigation (auf dem Smartphone hinter „Menü“): *Meine Checklisten*, *Vorlagen*, *Archiv*, *Papierkorb*. Unten links stehen dein Name und deine E-Mail-Adresse – ein Klick darauf öffnet das *Profil*. Die Seite ist für Smartphone, Tablet und Desktop ausgelegt, per Tastatur bedienbar (Sprunglink „Zum Inhalt springen“, sichtbarer Fokus) und passt sich dem hellen oder dunklen Design an.
 
 ## Vorlagen
 
@@ -23,21 +23,22 @@ Eine **Vorlage** ist eine wiederverwendbare Liste von Punkten (z. B. „Tagesaus
 ### Liste
 - **Suche** nach dem Titel (die Liste aktualisiert sich beim Tippen), **Filter** nach Tag (Schaltfläche erneut klicken hebt den Filter auf) und **Sortierung** (zuletzt geändert oder A–Z). Suche, Filter und Seite stehen in der Adresse und lassen sich als Lesezeichen speichern.
 - Bei mehr als 20 Vorlagen wird in Seiten geblättert.
-- Je Vorlage: **Bearbeiten**, **Duplizieren** (öffnet die Kopie) und **Löschen**. Gelöschte Vorlagen landen im **Papierkorb** und lassen sich dort wiederherstellen; bereits gestartete Checklisten bleiben unverändert.
-- **Neue Vorlage:** Titel eingeben, die Vorlage öffnet sich sofort zum Befüllen.
+- Ein Klick irgendwo in die Zeile öffnet die Vorlage zum Bearbeiten. Rechts stehen die Symbole ⧉ **Duplizieren** (öffnet die Kopie) und 🗑 **Löschen** (Beschriftung beim Darüberfahren und für Screenreader). Gelöschte Vorlagen landen im **Papierkorb** und lassen sich dort wiederherstellen; bereits gestartete Checklisten bleiben unverändert.
+- **Neue Vorlage:** Ein Dialog fragt nach Titel, Beschreibung und Tags (**Weiter zu den Punkten**). Danach siehst du die Seite zum Befüllen mit den Punkten oben und den Details darunter. **Angelegt wird erst mit „Erstellen“.** Verlässt du die Seite vorher (Link, Zurück-Taste, Neuladen), fragt ein Dialog nach – bei „Verlassen und verwerfen“ geht alles Eingegebene verloren. Duplizieren, Löschen und Export gibt es erst, wenn die Vorlage angelegt ist.
 
 ### Bearbeiten
-- **Details:** Titel, Beschreibung und Tags. Änderungen werden erst mit **Speichern** übernommen (ein Hinweis zeigt ungespeicherte Änderungen).
+- **Alles wird erst mit „Speichern“ übernommen:** Punkte (hinzufügen, ändern, löschen, umsortieren) und die **Details** (Titel, Beschreibung, Tags, unterhalb der Punkte) ändern zunächst nur den Entwurf auf der Seite. Ein Hinweis zeigt ungespeicherte Änderungen; beim Verlassen der Seite mit offenen Änderungen fragt ein Dialog nach (*Auf der Seite bleiben* oder *Verlassen und verwerfen*). Duplizieren und Löschen stehen mit Symbol hinter dem Text oben neben *Speichern*.
 - **Punkte hinzufügen:** In das Feld unter der Liste tippen und Enter drücken – das Feld bleibt aktiv, sodass du viele Punkte hintereinander eingeben kannst. Mit **＋** an einem Punkt legst du einen **Unterpunkt** an (beliebig tief).
 - **Punkt bearbeiten** (Titel, Beschreibung) und **löschen** (samt Unterpunkten, mit Rückfrage). **▾/▸** blendet Unterpunkte aus oder ein.
 - **Umsortieren und verschachteln:**
   - **Mit der Maus oder per Touch:** Griff **⋮⋮** ziehen. Beim Ziehen nach rechts oder links ändert sich die Ebene (Einrücken/Ausrücken); Unterpunkte wandern mit.
   - **Mit der Tastatur:** Fokus auf den Griff, **Leertaste** zum Aufnehmen, **Pfeil auf/ab** zum Bewegen, **Leertaste** zum Ablegen, **Esc** zum Abbrechen. Screenreader kündigen jeden Schritt an.
   - **Ohne Ziehen:** an jedem Punkt die Schaltflächen **↑ ↓** (nach oben/unten unter Geschwistern) und **← →** (ausrücken/einrücken: wird letzter Unterpunkt des vorherigen Punkts bzw. rückt hinter den bisherigen Elternpunkt).
-- **Exportieren:** JSON (vollständig, wieder importierbar), CSV (Komma) oder CSV für Excel (Semikolon) und Markdown (lesbar, druckbar).
+- **Exportieren** (Button neben Duplizieren und Löschen, öffnet eine Auswahl): bei Vorlagen JSON (vollständig, wieder importierbar) oder CSV (Semikolon, öffnet direkt in Excel).
+- **Checkliste exportieren** (Button *Exportieren* über der Checkliste, auch im Archiv): JSON (vollständig, wieder importierbar), CSV, Markdown oder *Drucken* (Druckdialog des Browsers, auch für PDF; Navigation und Schaltflächen werden nicht mitgedruckt).
 
 ### Tags
-Tags markieren Vorlagen farbig (nicht Checklisten). Du legst sie im Editor oder unter **Tags verwalten** an – gib nur den Namen ein: **die Farbe wird automatisch so gewählt, dass sie sich von deinen anderen Tags gut unterscheidet.** Unter *Tags verwalten* änderst du Farbe und Namen (beim Verlassen des Felds gespeichert) oder löschst einen Tag (nur die Zuordnung zu Vorlagen verschwindet).
+Tags markieren Vorlagen farbig (nicht Checklisten). Du legst sie beim Erstellen oder Bearbeiten einer Vorlage an (sofort, unabhängig vom Speichern der Vorlage) – gib nur den Namen ein: **die Farbe wird automatisch so gewählt, dass sie sich von deinen anderen Tags gut unterscheidet.** Unter **Profil → Tags** (direkt sichtbar, ohne Zwischenschritt) änderst du die Farbe (Farbfelder oder Hex-Wert) und den Namen (beim Verlassen des Felds gespeichert) oder löschst einen Tag. Vor dem Löschen fragt ein Dialog nach und nennt, in wie vielen Vorlagen der Tag verwendet wird (nur die Zuordnung verschwindet).
 
 ## Checklisten
 
@@ -46,14 +47,32 @@ Tags markieren Vorlagen farbig (nicht Checklisten). Du legst sie im Editor oder 
 Eine **Checkliste** ist eine konkrete Abarbeitung, z. B. „Ausflug Füssen“. Die Startseite zeigt alle aktiven Checklisten mit Fortschritt (erledigt/gesamt). **Geteilte** Checklisten tragen ein Kennzeichen „Geteilt · …“ (mit der Berechtigung und ggf. Passwort), nicht geteilte keines.
 
 - **Anlegen:** *Neue Checkliste*, beliebig viele Vorlagen wählen – der Titel wird aus den Vorlagen und dem Datum vorgeschlagen und lässt sich ändern. Jede Vorlage wird ein eigener **Abschnitt**, in der Reihenfolge deiner Auswahl (die Nummer am Eintrag zeigt sie). Ohne Vorlage startest du leer.
-- **Abhaken:** Irgendwo auf die Zeile klicken oder tippen – wird sofort gespeichert. Die Schaltflächen ＋ (Unterpunkt) und 🗑 (löschen) erscheinen beim Darüberfahren oder Fokussieren (auf Touchgeräten immer). *Erledigte ausblenden* blendet abgehakte Punkte aus (wird gemerkt). Sind alle Punkte erledigt, erscheint ein Hinweis zum Abschließen. Am Elternpunkt steht der Fortschritt der Unterpunkte; jeder Abschnitt und die ganze Checkliste haben einen Fortschrittsbalken.
+- **Abhaken:** Irgendwo auf die Zeile klicken oder tippen – wird sofort gespeichert. Die Schaltflächen ＋ (Unterpunkt) und 🗑 (löschen) erscheinen beim Darüberfahren oder Fokussieren (auf Touchgeräten immer). Abgehakte Punkte blendest du bei Bedarf mit der Einstellung *Erledigte ausblenden* unter **Profil → Darstellung** aus (gilt für dein ganzes Konto). Sind alle Punkte erledigt, erscheint ein Hinweis zum Abschließen. Am Elternpunkt steht der Fortschritt der Unterpunkte; jeder Abschnitt und die ganze Checkliste haben einen Fortschrittsbalken.
 - **Ergänzen:** Eigene Punkte und Unterpunkte (＋) hinzufügen, Punkte löschen (mit Rückfrage). *Vorlagen hinzufügen* hängt weitere Vorlagen als Abschnitte an; *Eigener Abschnitt* legt einen leeren Abschnitt für Punkte an, die in keiner Vorlage stehen. Die Checkliste ist eine Kopie: spätere Änderungen an der Vorlage wirken sich nicht auf sie aus.
 - **Beenden:** Zwei Wege.
   - **Abschließen:** Die Checkliste ist erledigt und wandert in den **Papierkorb** (wiederherstellbar bis zur automatischen Löschung).
   - **Archivieren:** Sie bleibt dauerhaft erhalten, ist schreibgeschützt und nicht mehr teilbar (ein Link wird beendet). Das **Archiv** wird nie automatisch geleert.
 
+### Reihenfolge ändern
+- **Abschnitte:** Mit den Pfeilen ↑ ↓ neben *Entfernen* verschiebst du einen Abschnitt nach oben oder unten.
+- **Punkte:** Am Griff ⋮⋮ ziehen. Dabei kannst du einen Punkt in einen **anderen Abschnitt** ziehen (auch ans Ende oder in einen leeren Abschnitt; dort erscheint „Hier ablegen“) und mit der horizontalen Bewegung die **Ebene** ändern (nach rechts = Unterpunkt des Punkts darüber, nach links = ausrücken). Unterpunkte wandern mit. Per Tastatur: Fokus auf den Griff, Leertaste, Pfeiltasten, Leertaste. Ohne Ziehen: die Schaltflächen ↑ ↓ ← → an der Zeile (beim Darüberfahren sichtbar). Bei eingeschaltetem *Erledigte ausblenden* (Profil → Darstellung) ist das Ziehen abgeschaltet.
+
+### Tastenkürzel
+
+Diese Übersicht findest du auch im Profil unter *Tastenkürzel*.
+
+| Taste | Wirkung |
+|---|---|
+| **Strg + S** (Mac: Cmd + S) | Vorlage speichern bzw. erstellen, auch beim Tippen |
+| **N** | neue Vorlage bzw. neue Checkliste (auf der jeweiligen Liste) |
+| **/** | in die Suche der Liste springen |
+| **?** | Hilfe mit allen Kürzeln |
+| **Esc** | Dialog schließen |
+
+Die Einzeltasten gelten nur, wenn du nicht in einem Textfeld bist und kein Dialog offen ist.
+
 ### Archiv
-Unter *Archiv* findest du archivierte Checklisten (Suche möglich). **Wieder öffnen** macht sie wieder aktiv, **Löschen** verschiebt sie in den Papierkorb.
+Unter *Archiv* findest du archivierte Checklisten (Suche möglich). Ein Klick auf die Zeile öffnet die Checkliste (schreibgeschützt). **Wiederherstellen** (Symbol ⟲, auch in der Checkliste selbst) macht sie wieder aktiv, 🗑 **Löschen** verschiebt sie in den Papierkorb.
 
 ### Papierkorb
 Enthält gelöschte Vorlagen und Checklisten mit Löschdatum und dem Tag der endgültigen Löschung (Aufbewahrungszeit im Profil). **Wiederherstellen** bringt einen Eintrag zurück (Checklisten in ihren früheren Zustand aktiv/archiviert), **Endgültig löschen** und **Papierkorb leeren** fragen vorher nach.
@@ -77,13 +96,21 @@ Alle Links verwaltest du gesammelt im Profil (*Geteilte Checklisten*). Links hab
 
 ## Profil
 
-### Konto
-Anzeigename, E-Mail-Adresse, **Sprache** (Deutsch/Englisch), **Design** (hell, dunkel oder wie das Gerät) und die Aufbewahrungszeit des **Papierkorbs** (7, 30, 90, 365 Tage oder nie). Sprache und Design gelten sofort. Zum Ändern der E-Mail-Adresse wird dein Passwort verlangt. Das Archiv wird nie automatisch geleert.
+Öffnen: unten links in der Navigation auf deinen Namen klicken. Das Profil ist zweigeteilt: links die Bereiche (Konto – mit „Konto löschen“ –, Darstellung, Tags, Sicherheit – Passwort ändern und Zwei-Faktor-Anmeldung –, Single Sign-on – nur wenn eingerichtet –, API-Token, Geteilte Checklisten, Daten), rechts der Inhalt des gewählten Bereichs. Die Adresse `/profile?section=security` springt direkt zu einem Bereich.
 
-### Passwort ändern
+### Konto
+Anzeigename, E-Mail-Adresse, **Sprache** (Deutsch/Englisch) und die Aufbewahrungszeit des **Papierkorbs** (7, 30, 90, 365 Tage oder nie). Die Sprache gilt sofort. Zum Ändern der E-Mail-Adresse wird dein Passwort verlangt. Das Archiv wird nie automatisch geleert.
+
+### Darstellung
+Gilt für dein ganzes Konto (auf allen Geräten) und wirkt sofort, ohne Speichern-Schaltfläche: **Design** (hell, dunkel oder wie das Gerät), **Akzentfarbe** (Blau, Indigo, Violett, Rosé, Orange, Grün, Petrol, Grau – für Schaltflächen, Links und Fortschritt; alle Farben erfüllen die Kontrastvorgaben in hellem und dunklem Design), **Schriftgröße** (Normal, Groß, Sehr groß – vergrößert Text und Abstände) und **Erledigte ausblenden** in Checklisten.
+
+### Sicherheit
+Enthält **Passwort ändern** und die **Zwei-Faktor-Anmeldung**.
+
+#### Passwort ändern
 Aktuelles Passwort und zweimal das neue eingeben. Danach werden alle anderen Geräte abgemeldet. Konten ohne Passwort (reine SSO-Konten) können über „Passwort vergessen“ eines festlegen.
 
-### Zwei-Faktor-Anmeldung
+#### Zwei-Faktor-Anmeldung
 Zusätzlicher Schutz mit einer Authenticator-App (z. B. Aegis, Google Authenticator, Microsoft Authenticator, Bitwarden, 2FAS).
 
 1. **Einrichten** klicken und dein Passwort bestätigen.
@@ -108,8 +135,8 @@ Empfehlung: so wenig Recht wie möglich, ein Token je Gerät oder Anwendung, mö
 Alle Links, über die du Checklisten teilst: Link kopieren, Einstellungen ändern (Zugriff mit oder ohne Passwort, nur ansehen oder bearbeiten), einzeln oder alle **zurückziehen**. Zurückgezogene Links funktionieren sofort nicht mehr. Checklisten im Papierkorb sind gekennzeichnet; ihr Link ist solange unwirksam.
 
 ### Daten
-- **Alle Daten exportieren** (JSON) und **Konto-Export** (DSGVO: zusätzlich Profil und Papierkorb; nie Passwörter oder Token).
-- **Import:** JSON-Datei (Export-Format) oder CSV mit den Spalten *Vorlage, Ebene, Titel, Beschreibung* wählen (oder Inhalt einfügen), **Prüfen** klicken. Du siehst, was importiert würde, bzw. alle Fehler mit Zeile oder Pfad. Erst nach **Jetzt importieren** wird etwas angelegt – immer als neue Einträge, nie als Überschreibung. Format-Details: [import-export.md](import-export.md).
+- **Alle Vorlagen exportieren** (JSON mit Punkten und Tags; nie Passwörter oder Token).
+- **Import (nur Vorlagen):** Checklisten in der Datei werden ignoriert. JSON-Datei (Export-Format) oder CSV mit den Spalten *Vorlage, Ebene, Titel, Beschreibung* wählen (oder Inhalt einfügen), **Prüfen** klicken. Du siehst, was importiert würde, bzw. alle Fehler mit Zeile oder Pfad. Erst nach **Jetzt importieren** wird etwas angelegt – immer als neue Einträge, nie als Überschreibung. Format-Details: [import-export.md](import-export.md).
 
 ### Konto löschen
 Löscht dein Konto mit allen Daten **unwiderruflich** (Passwortbestätigung nötig). Exportiere vorher, was du behalten möchtest.

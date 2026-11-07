@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from "react";
 import { api, ApiError } from "../api/client";
-import type { Language, PublicConfig, Theme, User } from "../api/types";
+import type { Accent, FontSize, Language, PublicConfig, Theme, User } from "../api/types";
 import { applyLanguage, detectLanguage, rememberLanguage } from "../i18n";
 import { kvGet, kvSet } from "../offline/idb";
 import { clearOfflineData } from "../offline/persist";
@@ -22,6 +22,13 @@ export function applyTheme(theme: Theme | undefined) {
   const root = document.documentElement;
   if (theme === "light" || theme === "dark") root.dataset.theme = theme;
   else delete root.dataset.theme; // „System“: die Farben folgen prefers-color-scheme
+}
+
+/** Akzentfarbe und Schriftgröße als Attribute am Wurzelelement (die Werte stehen in styles.css); Standardwerte ohne Attribut. */
+export function applyAppearance(accent: Accent | undefined, fontSize: FontSize | undefined) {
+  const root = document.documentElement;
+  if (accent && accent !== "blue") root.dataset.accent = accent; else delete root.dataset.accent;
+  if (fontSize && fontSize !== "normal") root.dataset.fontsize = fontSize; else delete root.dataset.fontsize;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -56,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user) rememberLanguage(user.language);
   }, [user?.language, config.data?.defaultLanguage, user]);
   useEffect(() => applyTheme(user?.theme), [user?.theme]);
+  useEffect(() => applyAppearance(user?.accent, user?.fontSize), [user?.accent, user?.fontSize]);
   // Angemeldeten Nutzer für den Start ohne Verbindung merken (auch nach Anmeldung/Registrierung und Profiländerungen, F-74)
   useEffect(() => { if (user) void kvSet("user", user); }, [user]);
 

@@ -18,17 +18,19 @@ async function createTemplate(page: Page, title: string, items: string[]) {
   await page.getByRole("link", { name: "Vorlagen" }).click();
   await page.getByRole("button", { name: "Neue Vorlage" }).first().click();
   await page.getByRole("dialog").getByLabel("Titel").fill(title);
-  await page.getByRole("dialog").getByRole("button", { name: "Anlegen" }).click();
-  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "Weiter zu den Punkten" }).click();
   const add = page.getByLabel("Neuen Punkt hinzufügen", { exact: true });
   for (const item of items) {
     await add.fill(item);
     await add.press("Enter");
     await expect(page.getByText(item, { exact: true })).toBeVisible();
   }
+  await page.getByRole("button", { name: "Erstellen" }).click(); // erst jetzt wird die Vorlage angelegt
+  await expect(page.getByText("Die Vorlage wurde erstellt.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
 }
 
-test("Vorlage → Checkliste → abhaken → archivieren → wieder öffnen → abschließen → Papierkorb", async ({ page }) => {
+test("Vorlage → Checkliste → abhaken → archivieren → wiederherstellen → abschließen → Papierkorb", async ({ page }) => {
   await register(page);
   await createTemplate(page, "Tagesausflug", ["Rucksack packen", "Route prüfen"]);
 
@@ -59,7 +61,7 @@ test("Vorlage → Checkliste → abhaken → archivieren → wieder öffnen → 
   await expect(page.getByRole("heading", { name: "Archiv", level: 1 })).toBeVisible();
   await page.getByRole("link", { name: "Ausflug Füssen" }).click();
   await expect(page.getByRole("checkbox", { name: "Route prüfen" })).toBeDisabled();
-  await page.getByRole("button", { name: "Wieder öffnen" }).click();
+  await page.getByRole("button", { name: "Wiederherstellen" }).click();
   await expect(page.getByRole("checkbox", { name: "Route prüfen" })).toBeEnabled();
 
   // Abschließen → Papierkorb → Wiederherstellen

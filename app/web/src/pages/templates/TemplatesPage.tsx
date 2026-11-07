@@ -1,12 +1,14 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { TemplateDetail, TemplateSummary } from "../../api/types";
-import { Alert, Button, Dialog, Select, Spinner, TextInput, useErrorText } from "../../components/ui";
+import { Alert, Button, Dialog, Select, Spinner, TextArea, TextInput, useErrorText } from "../../components/ui";
+import { CopyIcon, TrashIcon } from "../../components/icons";
 import { TagChip } from "./TagChip";
-import { TagsDialog, useTags } from "./TagsDialog";
+import { TagPicker } from "./TagPicker";
+import { useTags } from "./TagManager";
 
 const PAGE_SIZE = 20;
 
@@ -55,25 +57,21 @@ export default function TemplatesPage() {
 
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newTagIds, setNewTagIds] = useState<string[]>([]);
   const [toDelete, setToDelete] = useState<TemplateSummary | null>(null);
-  const [tagsOpen, setTagsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const notice = (location.state as { notice?: string } | null)?.notice;
 
-  async function create(e: FormEvent) {
+  /** Der Dialog sammelt nur Titel, Beschreibung und Tags; angelegt wird erst auf der Seite mit „Erstellen“. */
+  function create(e: FormEvent) {
     e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await api.post<{ template: TemplateDetail }>("/templates", { title: newTitle.trim() });
-      await qc.invalidateQueries({ queryKey: ["templates"] });
-      navigate(`/templates/${res.template.id}`);
-    } catch (err) {
-      setError(errorText(err));
-      setBusy(false);
-    }
+    navigate("/templates/new", { state: { draft: { title: newTitle.trim(), description: newDescription, tagIds: newTagIds } } });
   }
+  function openCreate() { setNewTitle(""); setNewDescription(""); setNewTagIds([]); setError(null); setCreating(true); }
+  /** Klick irgendwo in die Zeile öffnet die Vorlage – außer auf Links und Schaltflächen, die ihre eigene Aktion haben. */
+  const openRow = (id: string) => (e: MouseEvent) => { if (!(e.target as HTMLElement).closest("a,button")) navigate(`/templates/${id}`); };
 
   async function duplicate(tpl: TemplateSummary) {
     setError(null);
@@ -110,8 +108,7 @@ export default function TemplatesPage() {
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="m-0 flex-1 text-2xl font-semibold">{t("nav.templates")}</h1>
-        <Button onClick={() => setTagsOpen(true)}>{t("templates.manageTags")}</Button>
-        <Button variant="primary" onClick={() => { setNewTitle(""); setError(null); setCreating(true); }}>{t("templates.new")}</Button>
+        <Button variant="primary" data-shortcut="new" onClick={openCreate}>{t("templates.new")}</Button>
       </div>
 
       {notice && <div className="mb-3"><Alert kind="ok">{notice}</Alert></div>}
@@ -120,7 +117,7 @@ export default function TemplatesPage() {
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="min-w-[12rem] flex-1">
           <label htmlFor="tpl-search" className="label mt-0">{t("templates.search")}</label>
-          <input id="tpl-search" type="search" className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("templates.searchPlaceholder")} />
+          <input id="tpl-search" data-shortcut="search" type="search" className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("templates.searchPlaceholder")} />
         </div>
         <div className="w-44">
           <Select label={t("templates.sort")} value={sort} onChange={(e) => setParam("sort", e.target.value === "title" ? "title" : "")}>
@@ -144,23 +141,22 @@ export default function TemplatesPage() {
       {list.isPending ? <Spinner /> : (list.isError && !list.data) ? <Alert kind="error">{errorText(list.error)}</Alert> : total === 0 ? (
         <div className="card text-center">
           <p className="m-0">{debounced || tagId ? t("templates.noResults") : t("templates.empty")}</p>
-          {!debounced && !tagId && <Button variant="primary" className="mt-3" onClick={() => setCreating(true)}>{t("templates.new")}</Button>}
+          {!debounced && !tagId && <Button variant="primary" className="mt-3" onClick={openCreate}>{t("templates.new")}</Button>}
         </div>
       ) : (
         <>
           <p className="hint mt-0" aria-live="polite">{t("templates.count", { count: total })}</p>
           <ul className="m-0 grid list-none gap-3 p-0">
             {list.data!.templates.map((tpl) => (
-              <li key={tpl.id} className="card flex flex-wrap items-center gap-3">
+              <li key={tpl.id} className="card flex cursor-pointer flex-wrap items-center gap-3" onClick={openRow(tpl.id)}>
                 <div className="min-w-0 flex-1">
                   <Link to={`/templates/${tpl.id}`} className="text-base font-semibold text-text no-underline hover:underline">{tpl.title}</Link>
                   <p className="hint m-0">{t("templates.items", { count: tpl.itemCount })} · {t("templates.changed", { date: date(tpl.updatedAt) })}</p>
                   {tpl.tags.length > 0 && <p className="m-0 mt-1 flex flex-wrap gap-1">{tpl.tags.map((tag) => <TagChip key={tag.id} tag={tag} />)}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Link className="btn btn-sm no-underline" to={`/templates/${tpl.id}`} aria-label={t("templates.editNamed", { title: tpl.title })}>{t("common.edit")}</Link>
-                  <Button size="sm" onClick={() => void duplicate(tpl)} aria-label={t("templates.duplicateNamed", { title: tpl.title })}>{t("templates.duplicate")}</Button>
-                  <Button size="sm" variant="danger" onClick={() => setToDelete(tpl)} aria-label={t("templates.deleteNamed", { title: tpl.title })}>{t("common.delete")}</Button>
+                  <Button size="sm" onClick={() => void duplicate(tpl)} aria-label={t("templates.duplicateNamed", { title: tpl.title })} title={t("templates.duplicate")}><CopyIcon /></Button>
+                  <Button size="sm" variant="danger" onClick={() => setToDelete(tpl)} aria-label={t("templates.deleteNamed", { title: tpl.title })} title={t("common.delete")}><TrashIcon /></Button>
                 </div>
               </li>
             ))}
@@ -178,10 +174,11 @@ export default function TemplatesPage() {
       <Dialog open={creating} onClose={() => setCreating(false)} title={t("templates.newTitle")}>
         <form onSubmit={create} noValidate>
           <TextInput label={t("templates.titleLabel")} required autoFocus maxLength={200} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
-          {error && <div className="mt-3"><Alert kind="error">{error}</Alert></div>}
+          <TextArea label={t("editor.description")} rows={3} maxLength={5000} value={newDescription} onChange={(e) => setNewDescription(e.target.value)} />
+          <TagPicker value={newTagIds} onChange={setNewTagIds} />
           <div className="mt-5 flex justify-end gap-2">
             <Button onClick={() => setCreating(false)}>{t("common.cancel")}</Button>
-            <Button type="submit" variant="primary" disabled={busy || !newTitle.trim()}>{t("templates.create")}</Button>
+            <Button type="submit" variant="primary" disabled={!newTitle.trim()}>{t("templates.continueToItems")}</Button>
           </div>
         </form>
       </Dialog>
@@ -193,7 +190,6 @@ export default function TemplatesPage() {
         <p className="m-0">{t("templates.deleteText", { title: toDelete?.title })}</p>
       </Dialog>
 
-      <TagsDialog open={tagsOpen} onClose={() => setTagsOpen(false)} />
     </>
   );
 }

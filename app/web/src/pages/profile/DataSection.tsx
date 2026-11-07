@@ -6,7 +6,7 @@ import { Alert, Button, Card, Select, TextArea, TextInput, useErrorText } from "
 
 type Format = "json" | "csv";
 
-/** F-50 bis F-52: Export (alle Daten, Konto-Export für die DSGVO) und Import mit Vorschau. */
+/** F-50, F-51: Export aller Vorlagen und Import von Vorlagen mit Vorschau (Checklisten werden nicht importiert). */
 export function DataSection() {
   const { t } = useTranslation();
   const errorText = useErrorText();
@@ -35,7 +35,7 @@ export function DataSection() {
     setFormat(file.name.toLowerCase().endsWith(".csv") ? "csv" : "json");
   }
 
-  const body = (dryRun: boolean) => ({ format, content, dryRun, ...(format === "csv" && title.trim() ? { title: title.trim() } : {}) });
+  const body = (dryRun: boolean) => ({ format, content, dryRun, templatesOnly: true, ...(format === "csv" && title.trim() ? { title: title.trim() } : {}) });
 
   async function check() {
     reset();
@@ -71,8 +71,7 @@ export function DataSection() {
     <Card title={t("profile.data.title")} description={t("profile.data.description")}>
       <h3 className="m-0 text-base font-semibold">{t("profile.data.exportTitle")}</h3>
       <div className="mt-2 flex flex-wrap gap-2">
-        <Button onClick={() => void download("/export", "checklisten-daten.json")}>{t("profile.data.exportAll")}</Button>
-        <Button onClick={() => void download("/me/export", "konto-export.json")}>{t("profile.data.exportAccount")}</Button>
+        <Button onClick={() => void download("/export?scope=templates", "vorlagen.json")}>{t("profile.data.exportAll")}</Button>
       </div>
       <p className="hint mb-0">{t("profile.data.exportHint")}</p>
       {exportError && <div className="mt-3"><Alert kind="error">{exportError}</Alert></div>}
@@ -109,10 +108,9 @@ export function DataSection() {
       {preview?.valid && preview.counts && preview.preview && (
         <div className="mt-3">
           <Alert kind="ok">
-            <p className="m-0 font-semibold">{t("profile.data.previewOk", { templates: preview.counts.templates, runs: preview.counts.runs, items: preview.counts.items })}</p>
+            <p className="m-0 font-semibold">{t("profile.data.previewOk", { templates: preview.counts.templates, items: preview.counts.items })}</p>
             <ul className="mt-1 mb-0 pl-5">
               {preview.preview.templates.map((tpl, i) => <li key={`t${i}`}>{t("profile.data.previewTemplate", { title: tpl.title, count: tpl.itemCount })}</li>)}
-              {preview.preview.runs.map((run, i) => <li key={`r${i}`}>{t("profile.data.previewRun", { title: run.title, done: run.progress.done, total: run.progress.total })}</li>)}
             </ul>
             {preview.preview.tags.new.length > 0 && <p className="m-0 mt-1">{t("profile.data.newTags", { tags: preview.preview.tags.new.join(", ") })}</p>}
             {preview.warnings.map((w) => <p key={w} className="m-0 mt-1">{w}</p>)}
@@ -120,7 +118,7 @@ export function DataSection() {
           </Alert>
         </div>
       )}
-      {result && <div className="mt-3"><Alert kind="ok">{t("profile.data.imported", { templates: result.templates, runs: result.runs, items: result.items })}</Alert></div>}
+      {result && <div className="mt-3"><Alert kind="ok">{t("profile.data.imported", { templates: result.templates, items: result.items })}</Alert></div>}
     </Card>
   );
 }

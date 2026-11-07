@@ -100,9 +100,9 @@ const OPERATIONS: Op[] = [
 
   // ---------- Vorlagen ----------
   op("get", "/api/v1/templates", "Vorlagen", "any", "Vorlagen auflisten", { query: templates.listQuery }),
-  op("post", "/api/v1/templates", "Vorlagen", "any", "Vorlage anlegen", { status: 201, body: templates.templateBody, errors: { 422: "Unbekannter Tag (`unknown_tag`)" } }),
+  op("post", "/api/v1/templates", "Vorlagen", "any", "Vorlage anlegen", { status: 201, body: templates.templateBodyDoc, errors: { 422: "Unbekannter Tag (`unknown_tag`), `too_deep` oder `too_many_items` (optional `items`: ganzer Punktebaum)" } }),
   op("get", "/api/v1/templates/{id}", "Vorlagen", "any", "Vorlage mit Punktebaum lesen"),
-  op("put", "/api/v1/templates/{id}", "Vorlagen", "any", "Vorlage ändern", { body: templates.templateUpdate, errors: { 422: "Unbekannter Tag" } }),
+  op("put", "/api/v1/templates/{id}", "Vorlagen", "any", "Vorlage ändern", { body: templates.templateUpdateDoc, errors: { 422: "Unbekannter Tag, `too_deep`, `too_many_items` (optional `items` ersetzt den ganzen Punktebaum)" } }),
   op("delete", "/api/v1/templates/{id}", "Vorlagen", "any", "Vorlage in den Papierkorb", { status: 204 }),
   op("post", "/api/v1/templates/{id}/duplicate", "Vorlagen", "any", "Vorlage duplizieren", { status: 201 }),
   op("post", "/api/v1/templates/{id}/items", "Vorlagen", "any", "Punkt anlegen", { status: 201, body: templates.itemCreate, errors: { 422: "`too_deep` (Tiefe > 50)" } }),
@@ -121,8 +121,9 @@ const OPERATIONS: Op[] = [
   op("post", "/api/v1/runs/{id}/reopen", "Durchführungen", "any", "Aus dem Archiv wieder öffnen", { errors: { 409: "Nicht archiviert (`run_not_archived`)" } }),
   op("post", "/api/v1/runs/{id}/sections", "Durchführungen", "any", "Vorlagen ergänzen oder eigenen Abschnitt anlegen", { status: 201, body: runs.addSectionsBody, errors: { 409: "Nicht aktiv", 422: "Unbekannte Vorlage" } }),
   op("delete", "/api/v1/run-sections/{id}", "Durchführungen", "any", "Abschnitt entfernen", { errors: { 409: "Nicht aktiv" } }),
+  op("put", "/api/v1/run-sections/{id}", "Durchführungen", "any", "Abschnitt umbenennen", { body: runs.sectionUpdateBody, errors: { 409: "Nicht aktiv" } }),
   op("post", "/api/v1/run-sections/{id}/move", "Durchführungen", "any", "Abschnitt umsortieren", { body: runs.sectionMoveBody, errors: { 409: "Nicht aktiv" } }),
-  op("post", "/api/v1/run-sections/{id}/items", "Durchführungen", "any", "Eigenen Punkt anlegen", { status: 201, body: runs.itemCreate, errors: { 409: "Nicht aktiv", 422: "`too_deep`" } }),
+  op("post", "/api/v1/run-sections/{id}/items", "Durchführungen", "any", "Eigenen Punkt anlegen (oder mit `items` einen ganzen Punktebaum auf einmal)", { status: 201, body: runs.itemCreate.or(runs.itemBulkDoc), errors: { 409: "Nicht aktiv", 422: "`too_deep`" } }),
   op("put", "/api/v1/run-items/{id}", "Durchführungen", "any", "Abhaken / Punkt ändern", { body: runs.itemUpdate, errors: { 409: "Nicht aktiv" } }),
   op("delete", "/api/v1/run-items/{id}", "Durchführungen", "any", "Punkt samt Unterpunkten löschen", { errors: { 409: "Nicht aktiv" } }),
   op("post", "/api/v1/run-items/{id}/move", "Durchführungen", "any", "Punkt verschieben (auch in anderen Abschnitt)", { body: runs.itemMove, errors: { 409: "Nicht aktiv", 422: "`cycle`, `too_deep`" } }),
@@ -134,8 +135,7 @@ const OPERATIONS: Op[] = [
   op("delete", "/api/v1/trash", "Papierkorb", "any", "Papierkorb leeren", { description: "Liefert `{templates, runs}` mit den gelöschten Anzahlen." }),
 
   // ---------- Import und Export ----------
-  op("get", "/api/v1/export", "Import/Export", "any", "Alle eigenen Daten exportieren (JSON-Download)", { description: "Tags, Vorlagen (mit Unterpunkten) und Durchführungen ohne Papierkorb. Format zum Wiedereinlesen mit `POST /import`; enthält keine Geheimnisse, Freigabelinks oder IDs." }),
-  op("get", "/api/v1/me/export", "Import/Export", "session", "Vollständiger Konto-Export (DSGVO, JSON-Download)", { description: "Zusätzlich Profil, Papierkorb, Freigabe-Einstellungen und Token-Metadaten – nie Passwörter, Token oder Freigabe-Links." }),
+  op("get", "/api/v1/export", "Import/Export", "any", "Alle eigenen Daten exportieren (JSON-Download)", { query: ie.allExportQuery, description: "Tags, Vorlagen (mit Unterpunkten) und Durchführungen ohne Papierkorb. Format zum Wiedereinlesen mit `POST /import`; enthält keine Geheimnisse, Freigabelinks oder IDs." }),
   op("get", "/api/v1/templates/{id}/export", "Import/Export", "any", "Vorlage exportieren (JSON, CSV oder Markdown)", { query: ie.exportQuery, description: "CSV-Spalten: Vorlage, Ebene, Titel, Beschreibung (UTF-8 mit BOM, Zellen mit `=`,`+`,`-`,`@` am Anfang werden mit `'` geschützt)." }),
   op("get", "/api/v1/runs/{id}/export", "Import/Export", "any", "Durchführung exportieren (JSON, CSV oder Markdown)", { query: ie.exportQuery, description: "CSV-Spalten: Abschnitt, Ebene, Titel, Beschreibung, Erledigt, Erledigt am. Markdown mit Kontrollkästchen `- [x]`." }),
   op("post", "/api/v1/import", "Import/Export", "any", "Importieren (JSON oder CSV), optional nur prüfen", {

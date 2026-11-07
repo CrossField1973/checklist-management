@@ -5,7 +5,7 @@ import { schema } from "../db/index.js";
 import type { AppDeps } from "../server.js";
 import { DELIMITERS } from "../services/csv.js";
 import {
-  exportAccount, exportAll, exportRun, exportTemplate, runToCsv, runToMarkdown, templateToCsv, templateToMarkdown,
+  exportAll, exportRun, exportTemplate, runToCsv, runToMarkdown, templateToCsv, templateToMarkdown,
 } from "../services/export.js";
 import { applyImport, planFromCsv, planFromJson, previewOf, type ImportIssue } from "../services/import.js";
 import { parse } from "./auth.js";
@@ -15,6 +15,9 @@ export const exportQuery = z.object({
   format: z.enum(["json", "csv", "md"]).default("json").describe("json = vollständig, csv = tabellarisch, md = lesbar/druckbar"),
   delimiter: z.enum(["comma", "semicolon", "tab"]).default("comma").describe("Trennzeichen bei CSV (Excel in Deutschland: semicolon)"),
 });
+export const allExportQuery = z.object({
+  scope: z.enum(["all", "templates"]).default("all").describe("all = Vorlagen und Checklisten, templates = nur Vorlagen (mit Tags)"),
+});
 export const importBody = z.object({
   format: z.enum(["json", "csv"]),
   /** JSON: Text oder Objekt im Export-Format · CSV: Text mit den Spalten Vorlage, Ebene, Titel, Beschreibung */
@@ -23,6 +26,8 @@ export const importBody = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   /** true = nur prüfen und Vorschau liefern, nichts anlegen */
   dryRun: z.boolean().optional(),
+  /** true = Checklisten in der Datei ignorieren, nur Vorlagen importieren */
+  templatesOnly: z.boolean().optional(),
 });
 
 const MIME = { json: "application/json", csv: "text/csv", md: "text/markdown" } as const;
@@ -41,6 +46,9 @@ function download(reply: FastifyReply, name: string, ext: "json" | "csv" | "md",
     .send(body);
 }
 
+const countItems = (list: { items: any[] }[]): number => list.reduce((n, t) => n + count(t.items), 0);
+const count = (items: { children: any[] }[]): number => items.reduce((n, i) => n + 1 + count(i.children), 0);
+
 export async function importExportRoutes(app: FastifyInstance, { db }: AppDeps) {
   const auth = { preHandler: app.requireUser };
   const notFound = (reply: FastifyReply) => reply.code(404).send({ error: "not_found" });
@@ -48,9 +56,12 @@ export async function importExportRoutes(app: FastifyInstance, { db }: AppDeps) 
   // ---------- Export (F-50) ----------
   /** Alle eigenen Daten (ohne Papierkorb) für Sicherung und Migration. */
   app.get("/api/v1/export", auth, async (req, reply) => {
+    const q = parse(allExportQuery, req.query, reply);
+    if (!q) return;
     const doc = exportAll(db, req.user!.id);
-    req.log.info({ event: "export", userId: req.user!.id, scope: "all", templates: doc.templates.length, runs: doc.runs.length }, "Export");
-    return download(reply, "checklisten-daten", "json", JSON.stringify(doc, null, 2));
+    if (q.scope === "templates") doc.runs = [];
+    req.log.info({ event: "export", userId: req.user!.id, scope: q.scope, templates: doc.templates.length, runs: doc.runs.length }, "Export");
+    return download(reply, q.scope === "templates" ? "vorlagen" : "checklisten-daten", "json", JSON.stringify(doc, null, 2));
   });
 
   app.get("/api/v1/templates/:id/export", auth, async (req, reply) => {
@@ -81,12 +92,6 @@ export async function importExportRoutes(app: FastifyInstance, { db }: AppDeps) 
     return download(reply, r.title, "json", JSON.stringify({ format: "checklisten-export", version: 1, exportedAt: new Date().toISOString(), tags: [], templates: [], runs: [doc] }, null, 2));
   });
 
-  /** Vollständiger Konto-Export (DSGVO, F-52): nur mit Browser-Sitzung. */
-  app.get("/api/v1/me/export", { preHandler: app.requireSession }, async (req, reply) => {
-    req.log.info({ event: "export", userId: req.user!.id, scope: "account" }, "Konto-Export");
-    return download(reply, "konto-export", "json", JSON.stringify(exportAccount(db, req.user!), null, 2));
-  });
-
   // ---------- Import (F-51) ----------
   app.post("/api/v1/import", { ...auth, bodyLimit: 12 * 1024 * 1024 }, async (req, reply) => {
     const body = parse(importBody, req.body, reply);
@@ -100,7 +105,13 @@ export async function importExportRoutes(app: FastifyInstance, { db }: AppDeps) 
       if (typeof body.content !== "string") return reply.code(400).send({ error: "validation_error", details: [{ path: "content", message: "CSV muss als Text übergeben werden" }] });
       planned = planFromCsv(body.content, body.title);
     }
-    const warnings = planned.warnings ?? [];
+    const warnings = [...(planned.warnings ?? [])];
+    if (body.templatesOnly) {
+      if (planned.plan.runs.length) warnings.push(`${planned.plan.runs.length} Checkliste(n) in der Datei wurden ignoriert (nur Vorlagen werden importiert).`);
+      planned.plan.runs = [];
+      planned.itemCount = countItems(planned.plan.templates);
+      if (planned.issues.length === 0 && planned.plan.templates.length === 0) planned.issues.push({ path: "", message: "Keine Vorlagen enthalten" });
+    }
 
     if (body.dryRun) {
       const valid = planned.issues.length === 0;

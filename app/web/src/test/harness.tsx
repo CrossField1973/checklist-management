@@ -1,14 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { RouterProvider, createMemoryRouter } from "react-router";
 import { vi } from "vitest";
 import App from "../App";
 import type { PublicConfig, User } from "../api/types";
 import { AuthProvider } from "../auth/AuthProvider";
 
 export const USER: User = {
-  id: "u1", email: "anna@example.org", displayName: "Anna Muster", language: "de", theme: "system",
+  id: "u1", email: "anna@example.org", displayName: "Anna Muster", language: "de", theme: "system", accent: "blue", fontSize: "normal", hideDone: false,
   trashRetentionDays: 30, hasPassword: true, twoFactorEnabled: false, createdAt: 1,
 };
 export const CONFIG: PublicConfig = {
@@ -62,13 +62,10 @@ export function mockApi(opts: { user?: User | null; config?: Partial<PublicConfi
 export function renderApp(route = "/") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const ui = userEvent.setup();
+  const router = createMemoryRouter([{ path: "*", element: <AuthProvider><App /></AuthProvider> }], { initialEntries: [route] });
   const utils = render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[route]}>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </MemoryRouter>
+      <RouterProvider router={router} />
     </QueryClientProvider>,
   );
   return { ...utils, ui, queryClient };

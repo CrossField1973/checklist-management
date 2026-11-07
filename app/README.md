@@ -15,7 +15,7 @@ Umsetzung des [Pflichtenhefts](../Pflichtenheft.md). Dokumentation: [../docs/](.
 | 7. Freigabelinks: anlegen/ändern/neu erzeugen/widerrufen, Passwortschutz, ansehen/bearbeiten, öffentliche Ansicht ohne Konto, Geteilt-Kennzeichnung, Verwaltung im Profil | fertig (nur API) |
 | 8. API-Token-Verwaltung (lesen / lesen+schreiben, Ablauf, Rate-Limit), OpenAPI unter `/api/docs` | fertig |
 | 9. MCP-Server unter `/mcp` (17 Werkzeuge: lesen, erstellen, bearbeiten; kein Löschen/Archivieren/Teilen) | fertig |
-| 10. Import/Export: JSON/CSV/Markdown, Vorschau, Fehlerzeilen, Konto-Export (DSGVO) | fertig |
+| 10. Import/Export: JSON/CSV/Markdown, Vorschau, Fehlerzeilen | fertig |
 | 11. Zwei-Faktor (TOTP, Wiederherstellungscodes) und SSO (OpenID Connect, PKCE) | fertig |
 | 12a. Oberfläche: Gerüst, Anmelden (inkl. 2FA/SSO), Registrieren, Passwort vergessen/zurücksetzen, Profil (Konto, Passwort, 2FA, SSO, Token, Freigaben, Daten, Konto löschen), Deutsch/Englisch, hell/dunkel, Auslieferung durch den Server | fertig |
 | 12b. Oberfläche: Vorlagen (Liste mit Suche/Tag-Filter/Sortierung/Seiten, Editor mit Unterpunkten, Drag-and-Drop per Maus/Touch/Tastatur plus Schaltflächen, Duplizieren, Löschen, Export) und Tags (automatische Farbe) | fertig |
@@ -150,7 +150,6 @@ Formate, Regeln und Mendix-Migration: [docs/import-export.md](../docs/import-exp
 |---|---|---|
 | GET | `/api/v1/export` | Alle eigenen Daten (JSON-Download) |
 | GET | `/api/v1/templates/:id/export`, `/api/v1/runs/:id/export` | `?format=json\|csv\|md&delimiter=comma\|semicolon\|tab` |
-| GET | `/api/v1/me/export` | Vollständiger Konto-Export (DSGVO), nur Browser-Sitzung |
 | POST | `/api/v1/import` | `{format: json\|csv, content, title?, dryRun?}` – Vorschau oder Import (immer neue Datensätze, alles oder nichts) |
 
 ## MCP-Server (Schritt 9)

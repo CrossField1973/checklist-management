@@ -35,7 +35,7 @@ export const itemMove = z.object({ sectionId: id.optional(), parentItemId: id.nu
 
 const itemErrors: Record<RunItemError["code"], [number, string]> = {
   parent_not_found: [404, "parent_not_found"], section_not_found: [404, "section_not_found"],
-  cycle: [422, "cycle"], too_deep: [422, "too_deep"],
+  cycle: [422, "cycle"], too_deep: [422, "too_deep"], too_many_items: [422, "too_many_items"],
 };
 
 export async function shareRoutes(app: FastifyInstance, { config, db }: AppDeps) {

@@ -66,25 +66,6 @@ export function exportAll(db: Db, userId: string, opts: { includeTrash?: boolean
   };
 }
 
-/** Vollständiger Konto-Export (DSGVO, F-52): inkl. Profil, Papierkorb, Freigabe-Einstellungen und Token-Metadaten – ohne Geheimnisse. */
-export function exportAccount(db: Db, user: typeof schema.users.$inferSelect) {
-  const shares = db.select({ share: schema.runShares, runTitle: schema.runs.title }).from(schema.runShares)
-    .innerJoin(schema.runs, eq(schema.runs.id, schema.runShares.runId)).where(eq(schema.runs.ownerId, user.id)).all();
-  return {
-    ...exportAll(db, user.id, { includeTrash: true }),
-    account: {
-      email: user.email, displayName: user.displayName, language: user.language, theme: user.theme,
-      trashRetentionDays: user.trashRetentionDays, twoFactorEnabled: user.totpEnabledAt !== null, createdAt: iso(user.createdAt),
-    },
-    shares: shares.map(({ share, runTitle }) => ({
-      run: runTitle, access: share.access, permission: share.permission, passwordProtected: share.passwordHash !== null,
-      createdAt: iso(share.createdAt), revokedAt: iso(share.revokedAt),
-    })),
-    apiTokens: db.select().from(schema.apiTokens).where(and(eq(schema.apiTokens.userId, user.id), isNull(schema.apiTokens.revokedAt))).all()
-      .map((t) => ({ name: t.name, prefix: t.tokenPrefix, permission: t.permission, expiresAt: iso(t.expiresAt), lastUsedAt: iso(t.lastUsedAt), createdAt: iso(t.createdAt) })),
-  };
-}
-
 // ---------------------------------------------------------------------------------------------
 // CSV (Vorlagen: Vorlage, Ebene, Titel, Beschreibung – Durchführungen: Abschnitt, Ebene, Titel, Beschreibung, Erledigt, Erledigt am)
 // ---------------------------------------------------------------------------------------------

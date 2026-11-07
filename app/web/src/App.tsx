@@ -9,7 +9,7 @@ import PublicRun from "./pages/runs/PublicRun";
 import RunsPage from "./pages/runs/RunsPage";
 import RunView from "./pages/runs/RunView";
 import TrashPage from "./pages/TrashPage";
-import TemplateEditor from "./pages/templates/TemplateEditor";
+import TemplateEditor, { TemplateCreate } from "./pages/templates/TemplateEditor";
 import TemplatesPage from "./pages/templates/TemplatesPage";
 
 /** Startseite: Rücksprung des SSO-Verknüpfens (`/?sso=linked`) führt ins Profil, sonst die Übersicht der aktiven Durchführungen. */
@@ -35,6 +35,7 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route path="/" element={<Home />} />
         <Route path="/templates" element={<TemplatesPage />} />
+        <Route path="/templates/new" element={<TemplateCreate />} />
         <Route path="/templates/:id" element={<TemplateEditor />} />
         <Route path="/runs/:id" element={<RunView />} />
         <Route path="/archive" element={<RunsPage status="archived" />} />

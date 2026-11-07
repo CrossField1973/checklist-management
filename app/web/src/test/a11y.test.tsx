@@ -120,3 +120,24 @@ describe("Farbkontraste", () => {
     });
   }
 });
+
+describe("Farbkontraste der Akzentfarben", () => {
+  const accents = [...css.matchAll(/:root\[data-accent="([a-z]+)"\]\s*\{([^}]*)\}/g)].map((m) => ({ name: m[1]!, t: Object.fromEntries([...m[2]!.matchAll(/--ac-([a-z]+):\s*(#[0-9a-f]{6})/gi)].map((x) => [x[1]!, x[2]!])) }));
+  it("enthält alle wählbaren Farben außer dem Standard", () => {
+    expect(accents.map((a) => a.name)).toEqual(["indigo", "violet", "rose", "orange", "green", "teal", "slate"]);
+  });
+  for (const { name, t } of accents) {
+    it(`${name}: hell und dunkel erfüllen 4,5:1 (Text) bzw. 3:1 (Fokus)`, () => {
+      const L = light, D = dark;
+      const bad = [
+        ["hell: weiß auf Primär", ratio(L["primary-text"]!, t["p"]!), 4.5], ["hell: Primär auf Fläche", ratio(t["p"]!, L["surface"]!), 4.5],
+        ["hell: Primär auf Hintergrund", ratio(t["p"]!, L["bg"]!), 4.5], ["hell: Primär auf weicher Fläche", ratio(t["p"]!, t["s"]!), 4.5],
+        ["hell: Text auf weicher Fläche", ratio(L["text"]!, t["s"]!), 4.5], ["hell: Fokus", ratio(t["f"]!, L["bg"]!), 3],
+        ["dunkel: Text auf Primär", ratio(D["primary-text"]!, t["dp"]!), 4.5], ["dunkel: Primär auf Fläche", ratio(t["dp"]!, D["surface"]!), 4.5],
+        ["dunkel: Primär auf Hintergrund", ratio(t["dp"]!, D["bg"]!), 4.5], ["dunkel: Primär auf weicher Fläche", ratio(t["dp"]!, t["ds"]!), 4.5],
+        ["dunkel: Text auf weicher Fläche", ratio(D["text"]!, t["ds"]!), 4.5], ["dunkel: Fokus", ratio(t["df"]!, D["bg"]!), 3],
+      ].filter(([, r, min]) => (r as number) < (min as number)).map(([n, r]) => `${n}: ${(r as number).toFixed(2)}`);
+      expect(bad).toEqual([]);
+    });
+  }
+});

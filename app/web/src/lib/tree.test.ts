@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   countNodes, descendantIds, findNode, findParentId, flatten, getProjection, indentTarget, isSamePlace, moveDownTarget, moveInTree,
-  moveUpTarget, outdentTarget, type ItemNode,
+  moveUpTarget, outdentTarget, getBoardProjection, moveBetweenSections, type BoardRow, type ItemNode,
 } from "./tree";
 
 const n = (id: string, children: ItemNode[] = [], position = 0): ItemNode => ({ id, title: id, description: null, position, children });
@@ -151,5 +151,69 @@ describe("Ziel beim Ziehen (getProjection)", () => {
   it("ergibt Ziele, die mit moveInTree zusammen den erwarteten Baum liefern", () => {
     const p = proj("C", "B", 30)!;
     expect(shape(moveInTree(sample(), "C", p.parentId, p.position)!)).toEqual([["A", ["A1", "A2", "C"]], "B"]);
+  });
+});
+
+describe("Mehrere Abschnitte: moveBetweenSections", () => {
+  const sections = () => [{ id: "S1", items: sample() }, { id: "S2", items: [n("X", [n("X1")], 0), n("Y", [], 1)] }];
+  const shapes = (secs: { id: string; items: ItemNode[] }[]) => secs.map((x) => shape(x.items));
+
+  it("verschiebt zwischen Abschnitten an die oberste Ebene (mit Unterpunkten) und nummeriert neu", () => {
+    const res = moveBetweenSections(sections(), "A", { sectionId: "S2", parentItemId: null, position: 1 })!;
+    expect(shapes(res)).toEqual([["B", "C"], [["X", ["X1"]], ["A", ["A1", "A2"]], "Y"]]);
+    expect(positionsOk(res[0]!.items) && positionsOk(res[1]!.items)).toBe(true);
+  });
+
+  it("verschiebt unter einen Elternpunkt des anderen Abschnitts", () => {
+    const res = moveBetweenSections(sections(), "B", { sectionId: "S2", parentItemId: "X", position: 0 })!;
+    expect(shapes(res)).toEqual([[["A", ["A1", "A2"]], "C"], [["X", ["B", "X1"]], "Y"]]);
+  });
+
+  it("innerhalb eines Abschnitts wie moveInTree; unbekannte Ziele und Zyklen ergeben null", () => {
+    expect(shapes(moveBetweenSections(sections(), "C", { sectionId: "S1", parentItemId: null, position: 0 })!)[0]).toEqual(["C", ["A", ["A1", "A2"]], "B"]);
+    expect(moveBetweenSections(sections(), "A", { sectionId: "S1", parentItemId: "A1", position: 0 })).toBeNull();
+    expect(moveBetweenSections(sections(), "A", { sectionId: "S9", parentItemId: null, position: 0 })).toBeNull();
+    expect(moveBetweenSections(sections(), "A", { sectionId: "S2", parentItemId: "nix", position: 0 })).toBeNull();
+    expect(moveBetweenSections(sections(), "nix", { sectionId: "S2", parentItemId: null, position: 0 })).toBeNull();
+  });
+});
+
+describe("Mehrere Abschnitte: getBoardProjection", () => {
+  // S1: A[A1], B | S2: X, Y[Y1] | S3 (leer)
+  const rows: BoardRow[] = [
+    { id: "A", sectionId: "S1", parentId: null, depth: 0, isEnd: false }, { id: "A1", sectionId: "S1", parentId: "A", depth: 1, isEnd: false },
+    { id: "B", sectionId: "S1", parentId: null, depth: 0, isEnd: false }, { id: "end-S1", sectionId: "S1", parentId: null, depth: 0, isEnd: true },
+    { id: "X", sectionId: "S2", parentId: null, depth: 0, isEnd: false }, { id: "Y", sectionId: "S2", parentId: null, depth: 0, isEnd: false },
+    { id: "Y1", sectionId: "S2", parentId: "Y", depth: 1, isEnd: false }, { id: "end-S2", sectionId: "S2", parentId: null, depth: 0, isEnd: true },
+    { id: "end-S3", sectionId: "S3", parentId: null, depth: 0, isEnd: true },
+  ];
+  const proj = (active: string, over: string, dx = 0, desc: string[] = []) => getBoardProjection(rows, active, over, dx, 28, new Set(desc));
+
+  it("über sich selbst bleibt der Punkt an seinem Platz", () => {
+    expect(proj("B", "B")).toEqual({ sectionId: "S1", depth: 0, parentId: null, position: 1 });
+  });
+  it("auf einen Punkt eines anderen Abschnitts: Zielabschnitt ist der der Zeile unter dem Zeiger; nach unten gezogen hinter, nach oben vor die Zeile", () => {
+    expect(proj("B", "X")).toMatchObject({ sectionId: "S2", parentId: null, position: 1 }); // B steht vor X → nach unten → hinter X
+    expect(proj("Y", "A")).toMatchObject({ sectionId: "S1", parentId: null, position: 0 }); // Y steht hinter A → nach oben → vor A
+  });
+  it("auf das Ende eines leeren Abschnitts", () => {
+    expect(proj("B", "end-S3")).toEqual({ sectionId: "S3", depth: 0, parentId: null, position: 0 });
+  });
+  it("auf das Ende eines Abschnitts: hinten anhängen; nach rechts gezogen wird er Unterpunkt des letzten Punkts", () => {
+    expect(proj("X", "end-S1")).toMatchObject({ sectionId: "S1", depth: 0, parentId: null, position: 2 });
+    expect(proj("X", "end-S1", 30)).toMatchObject({ sectionId: "S1", depth: 1, parentId: "B", position: 0 });
+  });
+  it("in einem leeren Abschnitt kann man nicht einrücken", () => {
+    expect(proj("B", "end-S3", 90)).toMatchObject({ sectionId: "S3", depth: 0, parentId: null });
+  });
+  it("Unterpunkte wandern mit und zählen nicht als Ziel", () => {
+    expect(proj("A", "end-S2", 0, ["A1"])).toMatchObject({ sectionId: "S2", depth: 0, parentId: null, position: 2 });
+  });
+  it("ein Punkt unter einem Punkt eines anderen Abschnitts wird dort Unterpunkt", () => {
+    expect(proj("B", "Y", 30)).toMatchObject({ sectionId: "S2", parentId: "Y", depth: 1 });
+  });
+  it("unbekannte Ziele ergeben null", () => {
+    expect(proj("B", "nix")).toBeNull();
+    expect(proj("end-S1", "B")).toBeNull();
   });
 });

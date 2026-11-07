@@ -26,7 +26,7 @@ Anmeldung mit zweitem Faktor (`code` im Login), 2FA-Verwaltung und OpenID-Connec
 
 ## Import und Export
 
-Export als JSON/CSV/Markdown, Import mit Vorschau (`dryRun`) und Fehlermeldungen je Zeile, Konto-Export (DSGVO): siehe [import-export.md](import-export.md).
+Export als JSON/CSV/Markdown, Import mit Vorschau (`dryRun`) und Fehlermeldungen je Zeile, siehe [import-export.md](import-export.md).
 
 ## API-Token
 
@@ -49,7 +49,7 @@ curl -H "Authorization: Bearer ck_…" "$BASE/api/v1/templates"
 | `read` (lesen) | nur GET-Anfragen; Änderungen → `403 token_read_only` |
 | `write` (lesen+schreiben) | alles, was der Nutzer in der Oberfläche darf – außer unten |
 
-Nur mit **Browser-Sitzung** möglich (API-Token erhalten `403 session_required`): Profil ändern, Passwort ändern, Konto löschen, Token verwalten.
+Nur mit **Browser-Sitzung** möglich (API-Token erhalten `403 session_required`): Profil ändern (inkl. Darstellung: `theme`, `accent` = blue|indigo|violet|rose|orange|green|teal|slate, `fontSize` = normal|large|xlarge, `hideDone`), Passwort ändern, Konto löschen, Token verwalten.
 
 - Ein Token handelt immer als sein Besitzer und sieht nur dessen Daten.
 - Gespeichert werden nur der Hash und ein kurzes Präfix; verlorene Token lassen sich nicht wieder anzeigen – neu anlegen und den alten widerrufen.

@@ -57,11 +57,11 @@ describe("Werkzeugliste nach Token-Recht (F-64 bis F-66)", () => {
     const client = await connect(await createToken(user, "write"));
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(mcpToolNames(true).sort());
-    expect(tools).toHaveLength(17);
+    expect(tools).toHaveLength(23);
     for (const t of tools) {
       expect(t.description, t.name).toBeTruthy();
       expect(t.inputSchema.type).toBe("object");
-      expect(t.annotations?.destructiveHint, t.name).toBe(false);
+      expect(t.annotations?.destructiveHint, t.name).toBe(t.name === "delete_tag"); // nur Tags dürfen gelöscht werden
     }
     const readOnly = tools.filter((t) => t.annotations?.readOnlyHint).map((t) => t.name).sort();
     expect(readOnly).toEqual(["get_run", "get_template", "list_runs", "list_tags", "list_templates"]);
@@ -75,8 +75,8 @@ describe("Werkzeugliste nach Token-Recht (F-64 bis F-66)", () => {
     expect(client.getInstructions()).toContain("nur Leserechte");
   });
 
-  it("bietet bewusst kein Löschen, Archivieren, Teilen, Konto- oder Token-Verwaltung an", () => {
-    const names = mcpToolNames(true).join(" ");
+  it("bietet bewusst kein Löschen (außer von Tags), Archivieren, Teilen, Konto- oder Token-Verwaltung an", () => {
+    const names = mcpToolNames(true).filter((n) => n !== "delete_tag").join(" ");
     expect(names).not.toMatch(/delete|remove|archive|complete|share|trash|token|password|account|import|export|reopen/);
   });
 });
@@ -133,23 +133,30 @@ describe("Durchführungen lesen, erstellen, bearbeiten (F-65)", () => {
     };
     const [tag, therme, wandern] = [await mk("Tagesausflug", ["Proviant", "Route"]), await mk("Therme", ["Badesachen"]), await mk("Wandern", ["Schuhe", "Karte"])];
 
-    const run = (await call(c, "create_run", { title: "Ausflug Füssen", templateIds: [tag, therme] })).data.run;
-    expect(run.sections.map((s: { title: string }) => s.title)).toEqual(["Tagesausflug", "Therme"]);
+    const created = (await call(c, "create_run", { title: "Ausflug Füssen", templateIds: [tag, therme] })).data;
+    const run = created.run;
+    expect(created.sections.map((s: { title: string }) => s.title)).toEqual(["Tagesausflug", "Therme"]);
     expect(run.progress).toEqual({ done: 0, total: 3 });
+    expect(created.run.sections).toBeUndefined(); // schlanke Antwort: keine Punkte
 
-    let after = (await call(c, "add_templates_to_run", { runId: run.id, templateIds: [wandern] })).data.run;
-    expect(after.sections.map((s: { title: string }) => s.title)).toEqual(["Tagesausflug", "Therme", "Wandern"]);
-    after = (await call(c, "add_run_section", { runId: run.id, title: "Eigene Punkte" })).data.run;
-    const own = after.sections[3];
+    let info: any = (await call(c, "add_templates_to_run", { runId: run.id, templateIds: [wandern] })).data;
+    expect(info.sections.map((s: { title: string }) => s.title)).toEqual(["Tagesausflug", "Therme", "Wandern"]);
+    info = (await call(c, "add_run_section", { runId: run.id, title: "Eigene Punkte" })).data;
+    const own = info.sections[3];
     const added = (await call(c, "add_run_item", { sectionId: own.id, title: "Kuchen mitbringen" })).data;
-    after = added.run;
+    expect(added.item).toMatchObject({ title: "Kuchen mitbringen", sectionId: own.id, parentItemId: null, isChecked: false });
+    expect(added.progress).toEqual({ done: 0, total: 6 });
 
-    const schuhe = after.sections[2].items[0];
-    after = (await call(c, "update_run_item", { itemId: schuhe.id, isChecked: true })).data.run;
-    expect(after.progress).toEqual({ done: 1, total: 6 });
-    expect(after.sections[2].items[0].checkedAt).toBeGreaterThan(0);
+    const full = async () => (await call(c, "get_run", { runId: run.id })).data.run;
+    const schuhe = (await full()).sections[2].items[0];
+    const checked = (await call(c, "update_run_item", { itemId: schuhe.id, isChecked: true })).data;
+    expect(checked.progress).toEqual({ done: 1, total: 6 });
+    expect(checked.item).toMatchObject({ title: "Schuhe", isChecked: true });
+    expect((await full()).sections[2].items[0].checkedAt).toBeGreaterThan(0);
 
-    after = (await call(c, "move_run_item", { itemId: added.itemId, sectionId: after.sections[0].id, parentItemId: null, position: 0 })).data.run;
+    const moved = (await call(c, "move_run_item", { itemId: added.itemId, sectionId: (await full()).sections[0].id, parentItemId: null, position: 0 })).data;
+    expect(moved.item).toMatchObject({ title: "Kuchen mitbringen", position: 0 });
+    const after: any = await full();
     expect(after.sections[0].items[0].title).toBe("Kuchen mitbringen");
     expect(after.sections[3].items).toEqual([]);
 
@@ -164,8 +171,9 @@ describe("Durchführungen lesen, erstellen, bearbeiten (F-65)", () => {
     const t = (await call(c, "create_template", { title: "V" })).data.template.id;
     await call(c, "add_template_item", { templateId: t, title: "a" });
     const run = (await call(c, "create_run", { title: "R", templateIds: [t] })).data.run;
+    const itemId = (await call(c, "get_run", { runId: run.id })).data.run.sections[0].items[0].id;
     await user.post(`/api/v1/runs/${run.id}/archive`);
-    const res = await call(c, "update_run_item", { itemId: run.sections[0].items[0].id, isChecked: true });
+    const res = await call(c, "update_run_item", { itemId, isChecked: true });
     expect(res.isError).toBe(true);
     expect(res.text).toContain("run_not_active");
     expect(res.text).toContain("schreibgeschützt");
@@ -334,5 +342,93 @@ describe("Rate-Limit und Protokollierung (F-66, F-37)", () => {
     expect([blocked.statusCode, blocked.json().error]).toEqual([429, "rate_limited"]); // Header umgeht das Limit nicht
     const write = await app.inject({ method: "POST", url: "/api/v1/templates", payload: { title: "X" }, headers: { authorization: `Bearer ${readToken}`, "x-internal-call": "geraten" } });
     expect([write.statusCode, write.json().error]).toEqual([403, "token_read_only"]);
+  });
+});
+
+describe("Schlanke Antworten, Massenaufrufe, Umbenennen, Tags (Erweiterung)", () => {
+  it("legt eine Vorlage samt Punktebaum in einem Aufruf an und ersetzt ihn mit update_template", async () => {
+    const user = await newUser(app, "anna@example.org", "Anna");
+    const c = await connect(await createToken(user));
+    const created = (await call(c, "create_template", {
+      title: "Camping", items: [{ title: "Zelt", children: [{ title: "Heringe" }, { title: "Gestänge", description: "2 Teile" }] }, { title: "Schlafsack" }],
+    })).data;
+    expect(created.template).toMatchObject({ title: "Camping", itemCount: 4 });
+    expect(created.template.items).toBeUndefined(); // schlank
+    const got = (await call(c, "get_template", { templateId: created.template.id })).data.template;
+    expect(got.items.map((i: { title: string }) => i.title)).toEqual(["Zelt", "Schlafsack"]);
+    expect(got.items[0].children.map((i: { title: string }) => i.title)).toEqual(["Heringe", "Gestänge"]);
+
+    const replaced = (await call(c, "update_template", { templateId: created.template.id, items: [{ title: "Nur das" }] })).data;
+    expect(replaced.template.itemCount).toBe(1);
+    const kept = (await call(c, "update_template", { templateId: created.template.id, title: "Camping 2" })).data;
+    expect(kept.template).toMatchObject({ title: "Camping 2", itemCount: 1 }); // ohne items bleiben Punkte
+  });
+
+  it("Vorlagenpunkte: schlanke Antworten nennen Punkt, Elternpunkt und Gesamtzahl", async () => {
+    const user = await newUser(app, "anna@example.org", "Anna");
+    const c = await connect(await createToken(user));
+    const t = (await call(c, "create_template", { title: "V" })).data.template.id;
+    const a = (await call(c, "add_template_item", { templateId: t, title: "a" })).data;
+    expect(a.item).toMatchObject({ title: "a", parentItemId: null, position: 0 });
+    const b = (await call(c, "add_template_item", { templateId: t, title: "b", parentItemId: a.itemId })).data;
+    expect(b).toMatchObject({ item: { title: "b", parentItemId: a.itemId }, itemCount: 2 });
+    const upd = (await call(c, "update_template_item", { itemId: b.itemId, title: "b2" })).data;
+    expect(upd.item.title).toBe("b2");
+    const mv = (await call(c, "move_template_item", { itemId: b.itemId, parentItemId: null, position: 0 })).data;
+    expect(mv.item).toMatchObject({ parentItemId: null, position: 0 });
+  });
+
+  it("add_run_items hängt einen ganzen Baum an; Checkliste und Abschnitte lassen sich umbenennen und umsortieren", async () => {
+    const user = await newUser(app, "anna@example.org", "Anna");
+    const c = await connect(await createToken(user));
+    const run = (await call(c, "create_run", { title: "R" })).data.run;
+    const s1 = (await call(c, "add_run_section", { runId: run.id, title: "Eins" })).data.sections[0].id;
+    const s2 = (await call(c, "add_run_section", { runId: run.id, title: "Zwei" })).data.sections[1].id;
+
+    const bulk = (await call(c, "add_run_items", { sectionId: s1, items: [{ title: "A", children: [{ title: "A1" }, { title: "A2" }] }, { title: "B" }] })).data;
+    expect(bulk.itemIds).toHaveLength(2);
+    expect(bulk.progress).toEqual({ done: 0, total: 4 });
+    const under = (await call(c, "add_run_items", { sectionId: s1, parentItemId: bulk.itemIds[1], items: [{ title: "B1" }] })).data;
+    expect(under.progress.total).toBe(5);
+    let full = (await call(c, "get_run", { runId: run.id })).data.run;
+    expect(full.sections[0].items.map((i: { title: string; children: unknown[] }) => [i.title, i.children.length])).toEqual([["A", 2], ["B", 1]]);
+
+    expect((await call(c, "update_run", { runId: run.id, title: "Neuer Name" })).data.run.title).toBe("Neuer Name");
+    expect((await call(c, "update_run_section", { sectionId: s2, title: "Zwei umbenannt" })).data.sections.map((s: { title: string }) => s.title)).toEqual(["Eins", "Zwei umbenannt"]);
+    const order = (await call(c, "move_run_section", { sectionId: s2, position: 0 })).data.sections.map((s: { title: string }) => s.title);
+    expect(order).toEqual(["Zwei umbenannt", "Eins"]);
+
+    await user.post(`/api/v1/runs/${run.id}/archive`);
+    expect((await call(c, "add_run_items", { sectionId: s1, items: [{ title: "X" }] })).text).toContain("run_not_active");
+    expect((await call(c, "update_run_section", { sectionId: s1, title: "X" })).text).toContain("run_not_active");
+  });
+
+  it("Tags lassen sich vollständig verwalten: anlegen, ändern, zuordnen, löschen", async () => {
+    const user = await newUser(app, "anna@example.org", "Anna");
+    const other = await newUser(app, "bob@example.org", "Bob");
+    const c = await connect(await createToken(user));
+    const tag = (await call(c, "create_tag", { name: "Reisen" })).data.tag;
+    const upd = (await call(c, "update_tag", { tagId: tag.id, name: "Urlaub", color: "#112233" })).data.tag;
+    expect(upd).toMatchObject({ name: "Urlaub", color: "#112233" });
+    const t = (await call(c, "create_template", { title: "V", tagIds: [tag.id] })).data.template;
+    expect(t.tags[0].name).toBe("Urlaub");
+    expect((await call(c, "list_tags")).data.tags[0].templateCount).toBe(1);
+    expect((await call(c, "update_tag", { tagId: tag.id, name: "Urlaub" })).isError).toBe(false);
+    expect((await call(c, "create_tag", { name: "urlaub" })).text).toContain("tag_name_taken");
+
+    // fremde Tags sind nicht erreichbar
+    const foreign = (await other.post("/api/v1/tags", { name: "Fremd" })).json().tag;
+    expect((await call(c, "update_tag", { tagId: foreign.id, name: "Mein" })).text).toContain("not_found");
+    expect((await call(c, "delete_tag", { tagId: foreign.id })).text).toContain("not_found");
+
+    expect((await call(c, "delete_tag", { tagId: tag.id })).data).toEqual({ deleted: true });
+    expect((await call(c, "list_tags")).data.tags).toEqual([]);
+    expect((await call(c, "get_template", { templateId: t.id })).data.template.tags).toEqual([]); // Vorlage bleibt
+  });
+
+  it("Lese-Token sehen die neuen Schreibwerkzeuge nicht", async () => {
+    const user = await newUser(app, "anna@example.org", "Anna");
+    const names = (await (await connect(await createToken(user, "read"))).listTools()).tools.map((t) => t.name);
+    for (const n of ["add_run_items", "update_run", "update_run_section", "move_run_section", "update_tag", "delete_tag"]) expect(names).not.toContain(n);
   });
 });

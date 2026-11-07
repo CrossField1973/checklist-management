@@ -76,7 +76,7 @@ describe("Mandantentrennung (N-04)", () => {
     [`GET /api/v1/runs/${f.runId}/export`],
     [`POST /api/v1/runs/${f.runId}/archive`, {}], [`POST /api/v1/runs/${f.runId}/complete`, {}], [`POST /api/v1/runs/${f.runId}/reopen`, {}],
     [`POST /api/v1/runs/${f.runId}/sections`, { title: "Eingeschleust" }],
-    [`DELETE /api/v1/run-sections/${f.section}`], [`POST /api/v1/run-sections/${f.section}/move`, { position: 0 }],
+    [`PUT /api/v1/run-sections/${f.section}`, { title: "Umbenannt" }], [`DELETE /api/v1/run-sections/${f.section}`], [`POST /api/v1/run-sections/${f.section}/move`, { position: 0 }],
     [`POST /api/v1/run-sections/${f.section}/items`, { title: "Eingeschleust" }],
     [`PUT /api/v1/run-items/${f.runItem}`, { isChecked: true }], [`DELETE /api/v1/run-items/${f.runItem}`],
     [`POST /api/v1/run-items/${f.runItem}/move`, { parentItemId: null, position: 0 }],
@@ -168,7 +168,7 @@ describe("Sicherheits-Kopfzeilen und Cookies", () => {
     const { app } = setupApp();
     const u = await newUser(app, `d-${Math.random()}@example.org`);
     await u.post("/api/v1/me/tokens", { name: "T", permission: "read" });
-    for (const url of ["/api/v1/me", "/api/v1/me/tokens", "/api/v1/me/export", "/api/v1/export"]) {
+    for (const url of ["/api/v1/me", "/api/v1/me/tokens", "/api/v1/export"]) {
       const body = (await u.get(url)).body;
       expect(body, url).not.toMatch(/\$argon2|passwordHash|tokenHash|token_hash|password_hash|secretEnc|tokenEnc/i);
     }

@@ -4,11 +4,12 @@ import { z } from "zod";
 import { schema } from "../db/index.js";
 import type { AppDeps } from "../server.js";
 import {
-  RunItemError, addRunItem, appendEmptySection, appendSectionFromTemplate, deleteRunItem, deleteSection,
-  loadRunItems, loadSections, moveRunItem, moveSection, progressOf, runDetail, updateRunItem,
+  RunItemError, addRunItem, addRunItemTree, appendEmptySection, appendSectionFromTemplate, deleteRunItem, deleteSection,
+  loadRunItems, loadSections, moveRunItem, moveSection, progressOf, renameSection, runDetail, updateRunItem,
 } from "../services/run-items.js";
 import { activeShareOfRun, activeSharesOfRuns, shareBadge } from "../services/shares.js";
 import { parse } from "./auth.js";
+import { itemInput } from "./templates.js";
 
 export const id = z.string().uuid();
 export const title = z.string().trim().min(1).max(200);
@@ -21,6 +22,7 @@ export const addSectionsBody = z.union([
   z.object({ templateIds: z.array(id).min(1).max(100) }),
   z.object({ title }), // eigener, leerer Abschnitt für selbst angelegte Punkte
 ]);
+export const sectionUpdateBody = z.object({ title });
 export const sectionMoveBody = z.object({ position: z.number().int().min(0) });
 export const listQuery = z.object({
   status: z.enum(["active", "archived"]).default("active"),
@@ -31,6 +33,13 @@ export const listQuery = z.object({
 export const itemCreate = z.object({
   title, description: description.optional(), parentItemId: id.nullable().optional(), position: z.number().int().min(0).optional(),
 });
+/** Mehrere Punkte (mit Unterpunkten) auf einmal ans Ende eines Abschnitts oder unter `parentItemId`. */
+export const itemBulk = z.object({ parentItemId: id.nullable().optional(), items: z.array(itemInput).min(1) });
+/** Nicht rekursive Fassung nur für die OpenAPI-Beschreibung. */
+export const itemBulkDoc = z.object({
+  parentItemId: id.nullable().optional(),
+  items: z.array(z.object({ title, description: description.optional(), children: z.array(z.record(z.string(), z.unknown())).optional() })).min(1),
+});
 export const itemUpdate = z.object({ title: title.optional(), description: description.optional(), isChecked: z.boolean().optional() })
   .refine((b) => Object.keys(b).length > 0, "Keine Änderungen übergeben");
 export const itemMove = z.object({ sectionId: id.optional(), parentItemId: id.nullable(), position: z.number().int().min(0) });
@@ -40,6 +49,7 @@ const itemErrors: Record<RunItemError["code"], [number, string]> = {
   section_not_found: [404, "section_not_found"],
   cycle: [422, "cycle"],
   too_deep: [422, "too_deep"],
+  too_many_items: [422, "too_many_items"],
 };
 
 export async function runRoutes(app: FastifyInstance, { db }: AppDeps) {
@@ -233,6 +243,18 @@ export async function runRoutes(app: FastifyInstance, { db }: AppDeps) {
     return detail(found.run);
   });
 
+  app.put("/api/v1/run-sections/:id", auth, async (req, reply) => {
+    const p = parse(idParams, req.params, reply);
+    const body = parse(sectionUpdateBody, req.body, reply);
+    if (!p || !body) return;
+    const found = ownSection(req.user!.id, p.id);
+    if (!found) return notFound(reply);
+    if (found.run.status !== "active") return notActive(reply);
+    renameSection(db, found.section, body.title);
+    touch(found.run.id);
+    return detail(found.run);
+  });
+
   app.post("/api/v1/run-sections/:id/move", auth, async (req, reply) => {
     const p = parse(idParams, req.params, reply);
     const body = parse(sectionMoveBody, req.body, reply);
@@ -248,12 +270,18 @@ export async function runRoutes(app: FastifyInstance, { db }: AppDeps) {
   // ---------- Punkte (F-23 bis F-25) ----------
   app.post("/api/v1/run-sections/:id/items", auth, async (req, reply) => {
     const p = parse(idParams, req.params, reply);
-    const body = parse(itemCreate, req.body, reply);
+    const bulk = req.body && typeof req.body === "object" && "items" in req.body;
+    const body = bulk ? parse(itemBulk, req.body, reply) : parse(itemCreate, req.body, reply);
     if (!p || !body) return;
     const found = ownSection(req.user!.id, p.id);
     if (!found) return notFound(reply);
     if (found.run.status !== "active") return notActive(reply);
     try {
+      if ("items" in body) {
+        const itemIds = addRunItemTree(db, found.section, body.items, body.parentItemId ?? null);
+        touch(found.run.id);
+        return reply.code(201).send({ itemIds, ...detail(found.run) });
+      }
       const item = addRunItem(db, found.section, body);
       touch(found.run.id);
       return reply.code(201).send({ itemId: item.id, ...detail(found.run) });

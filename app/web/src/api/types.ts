@@ -1,5 +1,8 @@
 export type Language = "de" | "en";
 export type Theme = "light" | "dark" | "system";
+export const ACCENTS = ["blue", "indigo", "violet", "rose", "orange", "green", "teal", "slate"] as const;
+export type Accent = (typeof ACCENTS)[number];
+export type FontSize = "normal" | "large" | "xlarge";
 
 export interface User {
   id: string;
@@ -7,6 +10,10 @@ export interface User {
   displayName: string;
   language: Language;
   theme: Theme;
+  accent: Accent;
+  fontSize: FontSize;
+  /** Erledigte Punkte in Checklisten ausblenden (gilt für alle Geräte des Benutzers) */
+  hideDone: boolean;
   trashRetentionDays: number | null;
   hasPassword: boolean;
   twoFactorEnabled: boolean;

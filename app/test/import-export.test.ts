@@ -139,38 +139,6 @@ describe("Export (F-50)", () => {
   });
 });
 
-describe("Konto-Export (F-52)", () => {
-  it("enthält Profil, Papierkorb, Freigaben und Token-Metadaten – aber keine Geheimnisse", async () => {
-    const s = await seed(anna);
-    const tpl = (await anna.post("/api/v1/templates", { title: "Gelöscht" })).json().template.id;
-    await anna.del(`/api/v1/templates/${tpl}`);
-    await anna.post(`/api/v1/runs/${s.run.id}/complete`);
-    await anna.put(`/api/v1/runs/${s.archived.id}/share`, { access: "anyone", permission: "view" }).catch(() => undefined);
-    const apiToken = (await anna.post("/api/v1/me/tokens", { name: "Skript", permission: "read" })).json().token as string;
-    const live = (await anna.post("/api/v1/runs", { title: "Geteilt" })).json().run.id;
-    const share = (await anna.put(`/api/v1/runs/${live}/share`, { access: "password", permission: "edit", password: "geheimes-passwort" })).json().share;
-
-    const res = await anna.get("/api/v1/me/export");
-    expect(res.statusCode).toBe(200);
-    const doc = json(res.body);
-    expect(doc.account).toMatchObject({ email: "anna@example.org", displayName: "Anna", language: "de", twoFactorEnabled: false });
-    expect(doc.templates.find((t: { title: string }) => t.title === "Gelöscht").deletedAt).toBeTruthy();
-    expect(doc.runs.find((r: { title: string }) => r.title === "Ausflug Füssen").deletedAt).toBeTruthy();
-    expect(doc.shares).toEqual([expect.objectContaining({ run: "Geteilt", access: "password", permission: "edit", passwordProtected: true, revokedAt: null })]);
-    expect(doc.apiTokens).toEqual([expect.objectContaining({ name: "Skript", permission: "read", prefix: apiToken.slice(0, 8) })]);
-    for (const secret of [apiToken, "geheimes-passwort", share.url.split("/s/")[1], "argon2", "password_hash", "passwordHash", "tokenHash", "totp_secret"]) {
-      expect(res.body).not.toContain(secret);
-    }
-  });
-
-  it("ist nur mit Browser-Sitzung möglich", async () => {
-    const token = (await anna.post("/api/v1/me/tokens", { name: "t", permission: "write" })).json().token as string;
-    const res = await ctx.app.inject({ method: "GET", url: "/api/v1/me/export", headers: { authorization: `Bearer ${token}` } });
-    expect([res.statusCode, res.json().error]).toEqual([403, "session_required"]);
-    expect((await ctx.app.inject({ method: "GET", url: "/api/v1/me/export" })).statusCode).toBe(401);
-  });
-});
-
 describe("Import JSON (F-51)", () => {
   it("Round-Trip: Export eines Kontos, Import in ein anderes ergibt dieselbe Struktur samt Tags, Farben und Abhak-Status", async () => {
     await seed(anna);
@@ -413,5 +381,29 @@ describe("Rechte und Grenzen beim Import", () => {
   it("MCP und Import/Export sind getrennt: der MCP-Server bietet weder Import noch Export an", async () => {
     const { mcpToolNames } = await import("../src/mcp.js");
     expect(mcpToolNames(true).join(" ")).not.toMatch(/import|export/);
+  });
+});
+
+describe("Nur Vorlagen (Profil)", () => {
+  it("Export mit scope=templates enthält keine Checklisten", async () => {
+    await seed(anna);
+    const doc = json((await anna.get("/api/v1/export?scope=templates")).body);
+    expect(doc.templates).toHaveLength(2);
+    expect(doc.runs).toEqual([]);
+  });
+
+  it("Import mit templatesOnly ignoriert Checklisten, meldet es und legt nur Vorlagen an", async () => {
+    await seed(anna);
+    const doc = json((await anna.get("/api/v1/export")).body);
+    const bob = await newUser(ctx.app, "bob@example.org", "Bob");
+    const check = await importJson(bob, doc, { dryRun: true, templatesOnly: true });
+    expect(check.json()).toMatchObject({ valid: true, counts: { templates: 2, runs: 0, items: 6 } });
+    expect(check.json().warnings.join(" ")).toMatch(/2 Checkliste\(n\)/);
+    const res = await importJson(bob, doc, { templatesOnly: true });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().result).toMatchObject({ templates: 2, runs: 0 });
+    expect((await bob.get("/api/v1/runs")).json().total).toBe(0);
+    const onlyRuns = await importJson(bob, { ...doc, templates: [] }, { templatesOnly: true });
+    expect(onlyRuns.statusCode).toBe(422);
   });
 });

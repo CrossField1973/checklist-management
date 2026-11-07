@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "../db/index.js";
 import { schema } from "../db/index.js";
-import { MAX_DEPTH, loadItems as loadTemplateItems } from "./template-items.js";
+import { MAX_BULK_ITEMS, MAX_DEPTH, loadItems as loadTemplateItems, type ItemInput } from "./template-items.js";
 
 type RunItem = typeof schema.runItems.$inferSelect;
 type Section = typeof schema.runSections.$inferSelect;
@@ -32,7 +32,7 @@ export interface SectionNode {
 }
 
 export class RunItemError extends Error {
-  constructor(public code: "parent_not_found" | "section_not_found" | "cycle" | "too_deep") {
+  constructor(public code: "parent_not_found" | "section_not_found" | "cycle" | "too_deep" | "too_many_items") {
     super(code);
   }
 }
@@ -179,6 +179,31 @@ export function addRunItem(
     renumber(tx, siblings);
     return { ...item!, position: index };
   });
+}
+
+/**
+ * Hängt einen ganzen Punktebaum ans Ende eines Abschnitts (oder unter `parentItemId`) in einer Transaktion an.
+ * Gibt die IDs der obersten neuen Punkte zurück. Wirft RunItemError (`parent_not_found`, `too_deep`) bzw. bei mehr als
+ * MAX_BULK_ITEMS Punkten `too_many_items`.
+ */
+export function addRunItemTree(db: Db, section: Section, tree: ItemInput[], parentItemId: string | null = null): string[] {
+  let count = 0;
+  const check = (nodes: ItemInput[]) => nodes.forEach((n) => { if (++count > MAX_BULK_ITEMS) throw new RunItemError("too_many_items"); check(n.children ?? []); });
+  check(tree);
+  return db.transaction((tx) => {
+    const insert = (nodes: ItemInput[], parent: string | null): string[] =>
+      nodes.map((n) => {
+        const item = addRunItem(tx as unknown as Db, section, { title: n.title, description: n.description ?? null, parentItemId: parent });
+        insert(n.children ?? [], item.id);
+        return item.id;
+      });
+    return insert(tree, parentItemId);
+  });
+}
+
+/** Benennt einen Abschnitt um. */
+export function renameSection(db: Db, section: Section, title: string) {
+  db.update(schema.runSections).set({ title }).where(eq(schema.runSections.id, section.id)).run();
 }
 
 /** Verschiebt einen Punkt samt Unterpunkten, auch in einen anderen Abschnitt derselben Durchführung. */

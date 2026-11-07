@@ -194,10 +194,20 @@ describe("Profil (F-05)", () => {
     expect(res.json().user).toMatchObject({ displayName: "Anna M.", language: "en", theme: "dark", trashRetentionDays: null });
   });
 
+  it("speichert Darstellung (Akzentfarbe, Schriftgröße) und Erledigte-ausblenden pro Benutzer", async () => {
+    const { app } = setup();
+    const token = cookieOf(await register(app));
+    const me = async () => (await app.inject({ method: "GET", url: "/api/v1/me", ...withSession(token) })).json().user;
+    expect(await me()).toMatchObject({ accent: "blue", fontSize: "normal", hideDone: false });
+    const res = await app.inject({ method: "PUT", url: "/api/v1/me", ...withSession(token), payload: { accent: "teal", fontSize: "large", hideDone: true } });
+    expect(res.json().user).toMatchObject({ accent: "teal", fontSize: "large", hideDone: true });
+    expect(await me()).toMatchObject({ accent: "teal", fontSize: "large", hideDone: true });
+  });
+
   it("lehnt ungültige Werte ab", async () => {
     const { app } = setup();
     const token = cookieOf(await register(app));
-    for (const payload of [{ language: "fr" }, { trashRetentionDays: 5 }, { theme: "neon" }, {}]) {
+    for (const payload of [{ language: "fr" }, { trashRetentionDays: 5 }, { theme: "neon" }, { accent: "pink" }, { fontSize: "huge" }, { hideDone: "yes" }, {}]) {
       expect((await app.inject({ method: "PUT", url: "/api/v1/me", ...withSession(token), payload })).statusCode).toBe(400);
     }
   });

@@ -1,10 +1,11 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import type { RunDetail, RunSummary, ShareBadge } from "../../api/types";
 import { Alert, Button, Dialog, Spinner, TextInput, useErrorText } from "../../components/ui";
+import { RestoreIcon, TrashIcon } from "../../components/icons";
 import { ProgressBar } from "./RunBoard";
 import { TemplatePicker } from "./TemplatePicker";
 
@@ -86,6 +87,7 @@ export default function RunsPage({ status }: { status: "active" | "archived" }) 
   const [creating, setCreating] = useState(false);
   const [toDelete, setToDelete] = useState<RunSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
   const [notice, setNotice] = useState<string | null>((useLocation().state as { notice?: string } | null)?.notice ?? null);
 
   const list = useQuery({
@@ -104,6 +106,9 @@ export default function RunsPage({ status }: { status: "active" | "archived" }) 
     try { await fn(); await qc.invalidateQueries({ queryKey: ["runs"] }); if (done) setNotice(done); } catch (err) { setError(errorText(err)); }
   };
 
+  /** Klick irgendwo in die Zeile öffnet die Checkliste (Standardaktion) – außer auf Links und Schaltflächen. */
+  const openRow = (id: string) => (e: MouseEvent) => { if (!(e.target as HTMLElement).closest("a,button")) navigate(`/runs/${id}`); };
+
   const total = list.data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const date = (ms: number) => new Date(ms).toLocaleDateString(i18n.language, { dateStyle: "medium" });
@@ -112,7 +117,7 @@ export default function RunsPage({ status }: { status: "active" | "archived" }) 
     <>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="m-0 flex-1 text-2xl font-semibold">{archived ? t("nav.archive") : t("nav.runs")}</h1>
-        {!archived && <Button variant="primary" onClick={() => setCreating(true)}>＋ {t("runs.new")}</Button>}
+        {!archived && <Button variant="primary" data-shortcut="new" onClick={() => setCreating(true)}>＋ {t("runs.new")}</Button>}
       </div>
       {archived && <p className="hint mt-0">{t("runs.archiveIntro")}</p>}
       {notice && <div className="mb-3"><Alert kind="ok">{notice}</Alert></div>}
@@ -120,7 +125,7 @@ export default function RunsPage({ status }: { status: "active" | "archived" }) 
 
       {((list.data?.total ?? 0) > 5 || search) && <div className="mb-4">
         <label htmlFor="run-search" className="label mt-0">{t("runs.search")}</label>
-        <input id="run-search" type="search" className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("runs.searchPlaceholder")} />
+        <input id="run-search" data-shortcut="search" type="search" className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("runs.searchPlaceholder")} />
       </div>}
 
       {list.isPending ? <Spinner /> : (list.isError && !list.data) ? <Alert kind="error">{errorText(list.error)}</Alert> : total === 0 ? (
@@ -141,7 +146,7 @@ export default function RunsPage({ status }: { status: "active" | "archived" }) 
           <p className="hint mt-0" aria-live="polite">{t("runs.count", { count: total })}</p>
           <ul className="m-0 grid list-none gap-3 p-0">
             {list.data!.runs.map((r) => (
-              <li key={r.id} className="card">
+              <li key={r.id} className="card cursor-pointer" onClick={openRow(r.id)}>
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <Link to={`/runs/${r.id}`} className="text-base font-semibold text-text no-underline hover:underline">{r.title}</Link>{" "}
@@ -150,8 +155,8 @@ export default function RunsPage({ status }: { status: "active" | "archived" }) 
                   </div>
                   {archived && (
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => void run(() => api.post(`/runs/${r.id}/reopen`), t("runs.reopened", { title: r.title }))} aria-label={t("runs.reopenNamed", { title: r.title })}>{t("runs.reopen")}</Button>
-                      <Button size="sm" variant="danger" onClick={() => setToDelete(r)} aria-label={t("runs.deleteNamed", { title: r.title })}>{t("common.delete")}</Button>
+                      <Button size="sm" onClick={() => void run(() => api.post(`/runs/${r.id}/reopen`), t("runs.reopened", { title: r.title }))} aria-label={t("runs.reopenNamed", { title: r.title })} title={t("runs.reopen")}><RestoreIcon /></Button>
+                      <Button size="sm" variant="danger" onClick={() => setToDelete(r)} aria-label={t("runs.deleteNamed", { title: r.title })} title={t("common.delete")}><TrashIcon /></Button>
                     </div>
                   )}
                 </div>

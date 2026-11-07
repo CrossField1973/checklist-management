@@ -26,6 +26,8 @@
     "archive": "Archiv",
     "trash": "Papierkorb",
     "profile": "Profil",
+    "openProfile": "Profil öffnen",
+    "profileSections": "Profilbereiche",
     "logout": "Abmelden"
   },
   "notFound": {
@@ -133,10 +135,6 @@
     "account": {
       "title": "Konto",
       "language": "Sprache",
-      "theme": "Design",
-      "themeSystem": "Wie das Gerät",
-      "themeLight": "Hell",
-      "themeDark": "Dunkel",
       "trash": "Papierkorb automatisch leeren nach",
       "trashHint": "Das Archiv wird nie automatisch geleert.",
       "trashNever": "Nie",
@@ -246,13 +244,12 @@
     },
     "data": {
       "title": "Daten",
-      "description": "Exportiere deine Daten oder importiere Vorlagen und Checklisten.",
+      "description": "Exportiere alle Vorlagen oder importiere Vorlagen.",
       "exportTitle": "Export",
-      "exportAll": "Alle Daten exportieren (JSON)",
-      "exportAccount": "Konto-Export (DSGVO)",
-      "exportHint": "Einzelne Vorlagen und Checklisten exportierst du später direkt dort als JSON, CSV oder Markdown. Der Konto-Export enthält zusätzlich Profil und Papierkorb, aber keine Passwörter oder Token.",
+      "exportAll": "Alle Vorlagen exportieren (JSON)",
+      "exportHint": "Enthält alle Vorlagen mit Punkten und Tags, keine Passwörter oder Token. Einzelne Vorlagen und Checklisten exportierst du direkt dort.",
       "importTitle": "Import",
-      "importHint": "JSON (Export-Format) oder CSV mit den Spalten Vorlage, Ebene, Titel, Beschreibung. Importiert wird immer als neue Einträge; zuerst prüfst du eine Vorschau.",
+      "importHint": "JSON (Export-Format) oder CSV mit den Spalten Vorlage, Ebene, Titel, Beschreibung. Es werden nur Vorlagen importiert, immer als neue Einträge; zuerst prüfst du eine Vorschau.",
       "file": "Datei wählen",
       "format": "Format",
       "csvTitle": "Name der Vorlage (nur wenn die CSV keine Spalte „Vorlage“ hat)",
@@ -263,12 +260,11 @@
       "issues_one": "{{count}} Problem gefunden – es wird nichts importiert:",
       "issues_other": "{{count}} Probleme gefunden – es wird nichts importiert:",
       "moreIssues": "… und {{count}} weitere.",
-      "previewOk": "Bereit zum Import: {{templates}} Vorlagen, {{runs}} Checklisten, {{items}} Punkte.",
+      "previewOk": "Bereit zum Import: {{templates}} Vorlagen, {{items}} Punkte.",
       "previewTemplate": "Vorlage „{{title}}“ ({{count}} Punkte)",
-      "previewRun": "Checkliste „{{title}}“ ({{done}} von {{total}} erledigt)",
       "newTags": "Neue Tags: {{tags}}",
       "alwaysNew": "Der Import legt immer neue Einträge an und überschreibt nichts.",
-      "imported": "Importiert: {{templates}} Vorlagen, {{runs}} Checklisten, {{items}} Punkte."
+      "imported": "Importiert: {{templates}} Vorlagen, {{items}} Punkte."
     },
     "delete": {
       "title": "Konto löschen",
@@ -278,28 +274,59 @@
       "dialogTitle": "Konto endgültig löschen?",
       "warning": "Alle deine Daten werden sofort und unwiderruflich gelöscht. Exportiere sie vorher, wenn du sie behalten möchtest.",
       "confirm": "Konto endgültig löschen"
+    },
+    "display": {
+      "title": "Darstellung",
+      "description": "Gilt für dein ganzes Konto auf allen Geräten und wirkt sofort.",
+      "theme": "Design",
+      "themeSystem": "Wie das Gerät",
+      "themeLight": "Hell",
+      "themeDark": "Dunkel",
+      "accent": "Akzentfarbe",
+      "accents": {
+        "blue": "Blau",
+        "indigo": "Indigo",
+        "violet": "Violett",
+        "rose": "Rosé",
+        "orange": "Orange",
+        "green": "Grün",
+        "teal": "Petrol",
+        "slate": "Grau"
+      },
+      "fontSize": "Schriftgröße",
+      "fontSizeHint": "Vergrößert Text und Abstände in der ganzen App.",
+      "fontNormal": "Normal",
+      "fontLarge": "Groß",
+      "fontXLarge": "Sehr groß"
+    },
+    "tags": {
+      "title": "Tags",
+      "description": "Tags markieren Vorlagen farbig. Hier änderst du Namen und Farben, löschst Tags oder legst neue an."
+    },
+    "security": {
+      "title": "Sicherheit"
     }
   },
   "tags": {
-    "title": "Tags verwalten",
     "intro": "Tags markieren Vorlagen farbig. Sie gelten nur für Vorlagen, nicht für Checklisten.",
     "empty": "Du hast noch keine Tags.",
     "colorOf": "Farbe von {{name}}",
     "nameOf": "Name von {{name}}",
-    "usedBy_one": "{{count}} Vorlage",
-    "usedBy_other": "{{count}} Vorlagen",
     "delete": "Tag {{name}} löschen",
-    "confirmDelete": "Tag „{{name}}“ löschen?",
     "newName": "Neuer Tag",
     "newHint": "Die Farbe wird automatisch so gewählt, dass sie sich von deinen anderen Tags gut unterscheidet. Du kannst sie später ändern.",
-    "create": "Tag anlegen"
+    "create": "Tag anlegen",
+    "hex": "Hex-Farbwert",
+    "deleteTitle": "Tag „{{name}}“ löschen?",
+    "deleteText_one": "Dieser Tag wird in {{count}} Vorlage verwendet. Willst du ihn wirklich löschen? Nur die Zuordnung zur Vorlage verschwindet.",
+    "deleteText_other": "Dieser Tag wird in {{count}} Vorlagen verwendet. Willst du ihn wirklich löschen? Nur die Zuordnung zu den Vorlagen verschwindet.",
+    "deleteUnused": "Dieser Tag wird in keiner Vorlage verwendet. Willst du ihn wirklich löschen?"
   },
   "templates": {
     "new": "Neue Vorlage",
     "newTitle": "Neue Vorlage",
     "titleLabel": "Titel",
     "create": "Anlegen",
-    "manageTags": "Tags verwalten",
     "search": "Suche",
     "searchPlaceholder": "Titel durchsuchen …",
     "sort": "Sortierung",
@@ -314,7 +341,6 @@
     "items_one": "{{count}} Punkt",
     "items_other": "{{count}} Punkte",
     "changed": "geändert am {{date}}",
-    "editNamed": "Vorlage {{title}} bearbeiten",
     "duplicate": "Duplizieren",
     "duplicateNamed": "Vorlage {{title}} duplizieren",
     "duplicated": "Die Kopie wurde angelegt.",
@@ -323,7 +349,8 @@
     "deleteText": "„{{title}}“ wird in den Papierkorb verschoben und kann dort wiederhergestellt werden. Bereits gestartete Checklisten bleiben unverändert.",
     "deleted": "„{{title}}“ wurde in den Papierkorb verschoben.",
     "pagination": "Seiten",
-    "pageOf": "Seite {{page}} von {{pages}}"
+    "pageOf": "Seite {{page}} von {{pages}}",
+    "continueToItems": "Weiter zu den Punkten"
   },
   "editor": {
     "back": "Alle Vorlagen",
@@ -339,8 +366,12 @@
     "items": "Punkte",
     "itemsHint": "{{count}} Punkte insgesamt. Zum Umsortieren den Griff ⋮⋮ ziehen – oder die Schaltflächen ↑ ↓ ← → verwenden.",
     "export": "Exportieren",
-    "exportHint": "Als Datei herunterladen: JSON (vollständig, wieder importierbar), CSV (Tabelle) oder Markdown (lesbar, druckbar).",
-    "csvExcel": "CSV für Excel (Semikolon)"
+    "created": "Die Vorlage wurde erstellt.",
+    "createButton": "Erstellen",
+    "creatingHeading": "Neue Vorlage: {{title}}",
+    "createHint": "Die Vorlage wird erst mit „Erstellen“ gespeichert. Verlässt du die Seite vorher, wird alles verworfen.",
+    "exportCsvHint": "Tabelle mit Semikolon, öffnet direkt in Excel.",
+    "exportJsonHint": "Vollständig, kann wieder importiert werden."
   },
   "items": {
     "listLabel": "Punkte der Vorlage",
@@ -381,7 +412,8 @@
       "over": "{{title}} liegt über {{target}}.",
       "end": "{{title}} abgelegt.",
       "cancel": "Verschieben von {{title}} abgebrochen."
-    }
+    },
+    "apply": "Übernehmen"
   },
   "runs": {
     "new": "Neue Checkliste",
@@ -399,7 +431,7 @@
     "searchPlaceholder": "Titel durchsuchen …",
     "noResults": "Keine passende Checkliste gefunden.",
     "empty": "Noch keine Checkliste. Starte eine aus einer oder mehreren Vorlagen – oder ganz leer.",
-    "archiveIntro": "Archivierte Checklisten bleiben dauerhaft erhalten und sind schreibgeschützt. Du kannst sie wieder öffnen.",
+    "archiveIntro": "Archivierte Checklisten bleiben dauerhaft erhalten und sind schreibgeschützt. Du kannst sie wiederherstellen.",
     "archiveEmpty": "Das Archiv ist leer.",
     "count_one": "{{count}} Checkliste",
     "count_other": "{{count}} Checklisten",
@@ -408,9 +440,9 @@
     "noSections": "Keine Abschnitte",
     "shared": "Geteilt",
     "progressOf": "Fortschritt von {{title}}",
-    "reopen": "Wieder öffnen",
-    "reopenNamed": "{{title}} wieder öffnen",
-    "reopened": "„{{title}}“ ist wieder aktiv.",
+    "reopen": "Wiederherstellen",
+    "reopenNamed": "{{title}} wiederherstellen",
+    "reopened": "„{{title}}“ wurde wiederhergestellt.",
     "deleteNamed": "{{title}} löschen",
     "deleteTitle": "Checkliste löschen?",
     "deleteText": "„{{title}}“ wird in den Papierkorb verschoben und kann dort wiederhergestellt werden.",
@@ -458,7 +490,20 @@
     "titleHint": "Wird aus den Vorlagen vorgeschlagen – du kannst ihn ändern.",
     "newTemplate": "Neue Vorlage anlegen",
     "step1": "1. Vorlage anlegen (z. B. Packliste)",
-    "step2": "2. Daraus eine Checkliste starten und abhaken"
+    "step2": "2. Daraus eine Checkliste starten und abhaken",
+    "dropHere": "Hier ablegen",
+    "sectionEnd": "Ende des Abschnitts",
+    "sectionUp": "Abschnitt {{title}} nach oben",
+    "sectionDown": "Abschnitt {{title}} nach unten",
+    "sectionOrder": "Reihenfolge von {{title}}",
+    "a11y": {
+      "instructions": "Zum Verschieben Leertaste drücken, mit den Pfeiltasten nach oben oder unten bewegen (auch in andere Abschnitte) und die Leertaste zum Ablegen drücken. Escape bricht ab. Ein- und Ausrücken geht mit den Schaltflächen am Punkt."
+    },
+    "exportJsonHint": "Vollständig, kann wieder importiert werden.",
+    "exportCsvHint": "Tabelle mit Semikolon, öffnet direkt in Excel.",
+    "exportMdHint": "Lesbarer Text mit Kästchen.",
+    "exportPrintHint": "Öffnet den Druckdialog des Browsers (auch für PDF).",
+    "print": "Drucken"
   },
   "share": {
     "title": "Checkliste teilen",
@@ -527,5 +572,21 @@
     },
     "waiting": "wartet auf Übertragung",
     "dismiss": "OK"
+  },
+  "leave": {
+    "title": "Seite verlassen?",
+    "text": "Du hast Änderungen nicht gespeichert. Wenn du die Seite verlässt, werden sie verworfen.",
+    "stay": "Auf der Seite bleiben",
+    "leave": "Verlassen und verwerfen"
+  },
+  "shortcuts": {
+    "title": "Tastenkürzel",
+    "save": "Speichern bzw. Erstellen (Vorlage)",
+    "new": "Neue Vorlage bzw. neue Checkliste (auf der jeweiligen Liste)",
+    "search": "Suche in der Liste",
+    "help": "Diese Hilfe anzeigen",
+    "close": "Dialog schließen",
+    "hint": "Die Einzeltasten gelten nur, wenn du nicht in einem Textfeld bist. Auf dem Mac gilt Cmd statt Strg.",
+    "description": "Mit der Tastatur geht vieles schneller. Die Hilfe mit allen Kürzeln öffnest du überall mit ?."
   }
 }

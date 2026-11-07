@@ -8,6 +8,7 @@ import type { AppDeps } from "../server.js";
 import { findUserByEmail, normalizeEmail, toUserDto } from "../users.js";
 import { parse } from "./auth.js";
 
+export const ACCENTS = ["blue", "indigo", "violet", "rose", "orange", "green", "teal", "slate"] as const;
 const TRASH_CHOICES = [7, 30, 90, 365] as const; // null = nie (F-32)
 
 export const updateBody = z
@@ -17,6 +18,9 @@ export const updateBody = z
     currentPassword: z.string().max(1024), // nur bei E-Mail-Änderung nötig
     language: z.enum(["de", "en"]),
     theme: z.enum(["light", "dark", "system"]),
+    accent: z.enum(ACCENTS),
+    fontSize: z.enum(["normal", "large", "xlarge"]),
+    hideDone: z.boolean(),
     trashRetentionDays: z.union([z.null(), z.literal(7), z.literal(30), z.literal(90), z.literal(365)]),
   })
   .partial()
@@ -46,6 +50,9 @@ export async function meRoutes(app: FastifyInstance, { config, db }: AppDeps) {
     if (body.displayName !== undefined) patch.displayName = body.displayName;
     if (body.language !== undefined) patch.language = body.language;
     if (body.theme !== undefined) patch.theme = body.theme;
+    if (body.accent !== undefined) patch.accent = body.accent;
+    if (body.fontSize !== undefined) patch.fontSize = body.fontSize;
+    if (body.hideDone !== undefined) patch.hideDone = body.hideDone;
     if (body.trashRetentionDays !== undefined) patch.trashRetentionDays = body.trashRetentionDays;
 
     if (body.email !== undefined && normalizeEmail(body.email) !== user.email) {

@@ -13,14 +13,15 @@ Grundregeln:
 
 | Was | Aufruf | Formate |
 |---|---|---|
-| Alle eigenen Daten (ohne Papierkorb) | `GET /api/v1/export` | JSON |
+| Alle eigenen Daten (ohne Papierkorb) | `GET /api/v1/export` (`?scope=templates` = nur Vorlagen, so nutzt es das Profil) | JSON |
 | Eine Vorlage | `GET /api/v1/templates/{id}/export?format=…` | `json`, `csv`, `md` |
 | Eine Checkliste | `GET /api/v1/runs/{id}/export?format=…` | `json`, `csv`, `md` |
-| Vollständiger Konto-Export (DSGVO) | `GET /api/v1/me/export` (nur Browser-Sitzung) | JSON |
 
 Bei CSV wählt `delimiter=comma|semicolon|tab` das Trennzeichen (**Excel in Deutschland: `semicolon`**). Die Dateien sind UTF-8 mit BOM, damit Umlaute richtig erscheinen. Die Antwort ist ein Download (`Content-Disposition`), der Dateiname wird aus dem Titel gebildet (nur `a–z`, `0–9`, `-`).
 
-Der **Konto-Export** enthält zusätzlich Profil, Papierkorb (mit Löschdatum), Freigabe-Einstellungen (ohne Links und Passwörter) und Token-Metadaten (Name, Präfix, Recht, Ablauf – nie der Token). Das Löschen des Kontos entfernt alle Daten endgültig (`DELETE /api/v1/me`).
+Einen eigenen Konto-Export gibt es nicht mehr. Das Löschen des Kontos entfernt alle Daten endgültig (`DELETE /api/v1/me`).
+
+**Import:** `POST /api/v1/import` mit `templatesOnly: true` ignoriert Checklisten in der Datei (mit Warnung) und legt nur Vorlagen an – so importiert das Profil. Ohne das Flag werden auch Checklisten importiert.
 
 ### Vorlagen als CSV
 

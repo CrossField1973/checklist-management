@@ -4,7 +4,7 @@ import { z } from "zod";
 import { schema } from "../db/index.js";
 import type { AppDeps } from "../server.js";
 import {
-  ItemError, addItem, buildTree, copyItems, deleteItem, loadItems, moveItem,
+  ItemError, addItem, buildTree, copyItems, deleteItem, loadItems, moveItem, replaceItems,
 } from "../services/template-items.js";
 import { parse } from "./auth.js";
 import { tagDto } from "./tags.js";
@@ -14,11 +14,24 @@ export const title = z.string().trim().min(1).max(200);
 export const description = z.string().max(5000).nullable();
 export const idParams = z.object({ id });
 
+/** Punkt mit beliebig vielen Unterpunkten (nur für Anlegen/Speichern einer ganzen Vorlage; IDs vergibt der Server). */
+export const itemInput = z.object({
+  title,
+  description: description.optional(),
+  get children() { return z.array(itemInput).optional(); },
+});
+
 export const templateBody = z.object({
   title,
   description: description.optional(),
   tagIds: z.array(id).max(50).optional(),
+  /** Vollständiger Punktebaum; ersetzt beim Ändern alle bisherigen Punkte. Ohne Angabe bleiben Punkte unverändert. */
+  items: z.array(itemInput).optional(),
 });
+/** Nicht rekursive Fassung nur für die OpenAPI-Beschreibung (`children` hat dieselbe Form wie ein Punkt). */
+const itemInputDoc = z.object({ title, description: description.optional(), children: z.array(z.record(z.string(), z.unknown())).optional() });
+export const templateBodyDoc = templateBody.extend({ items: z.array(itemInputDoc).optional() });
+export const templateUpdateDoc = templateBodyDoc.partial();
 export const templateUpdate = templateBody.partial().refine((b) => Object.keys(b).length > 0, "Keine Änderungen übergeben");
 
 export const listQuery = z.object({
@@ -44,6 +57,7 @@ const itemErrors: Record<ItemError["code"], [number, string]> = {
   cycle: [422, "cycle"],
   too_deep: [422, "too_deep"],
   not_found: [404, "not_found"],
+  too_many_items: [422, "too_many_items"],
 };
 
 export async function templateRoutes(app: FastifyInstance, { db }: AppDeps) {
@@ -132,10 +146,19 @@ export async function templateRoutes(app: FastifyInstance, { db }: AppDeps) {
     if (!body) return;
     const userId = req.user!.id;
     if (!ownsAllTags(userId, body.tagIds ?? [])) return reply.code(422).send({ error: "unknown_tag" });
-    const [t] = db.insert(schema.templates).values({ ownerId: userId, title: body.title, description: body.description ?? null }).returning().all();
-    setTags(t!.id, body.tagIds ?? []);
-    req.log.info({ event: "template_created", userId, templateId: t!.id }, "Vorlage angelegt");
-    return reply.code(201).send(detail(t!));
+    let t: typeof schema.templates.$inferSelect;
+    try {
+      t = db.transaction((tx) => {
+        const [created] = tx.insert(schema.templates).values({ ownerId: userId, title: body.title, description: body.description ?? null }).returning().all();
+        if (body.items) replaceItems(tx, created!.id, body.items);
+        return created!;
+      });
+    } catch (err) {
+      return itemFail(reply, err);
+    }
+    setTags(t.id, body.tagIds ?? []);
+    req.log.info({ event: "template_created", userId, templateId: t.id }, "Vorlage angelegt");
+    return reply.code(201).send(detail(t));
   });
 
   app.get("/api/v1/templates/:id", auth, async (req, reply) => {
@@ -153,11 +176,20 @@ export async function templateRoutes(app: FastifyInstance, { db }: AppDeps) {
     const t = ownTemplate(userId, p.id);
     if (!t) return reply.code(404).send({ error: "not_found" });
     if (body.tagIds && !ownsAllTags(userId, body.tagIds)) return reply.code(422).send({ error: "unknown_tag" });
-    const [updated] = db.update(schema.templates)
-      .set({ ...(body.title !== undefined && { title: body.title }), ...(body.description !== undefined && { description: body.description }), updatedAt: Date.now() })
-      .where(eq(schema.templates.id, t.id)).returning().all();
+    let updated: typeof schema.templates.$inferSelect;
+    try {
+      updated = db.transaction((tx) => {
+        const [row] = tx.update(schema.templates)
+          .set({ ...(body.title !== undefined && { title: body.title }), ...(body.description !== undefined && { description: body.description }), updatedAt: Date.now() })
+          .where(eq(schema.templates.id, t.id)).returning().all();
+        if (body.items) replaceItems(tx, t.id, body.items);
+        return row!;
+      });
+    } catch (err) {
+      return itemFail(reply, err);
+    }
     if (body.tagIds) setTags(t.id, body.tagIds);
-    return detail(updated!);
+    return detail(updated);
   });
 
   // F-16: Löschen = Papierkorb (Soft-Delete); bestehende Durchführungen bleiben unverändert.

@@ -3,6 +3,7 @@ import { NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/AuthProvider";
 import { OfflineManager } from "../offline/OfflineManager";
+import { Shortcuts } from "./Shortcuts";
 import { Button, Spinner } from "./ui";
 
 const NAV = [
@@ -10,7 +11,6 @@ const NAV = [
   { to: "/templates", key: "nav.templates" },
   { to: "/archive", key: "nav.archive" },
   { to: "/trash", key: "nav.trash" },
-  { to: "/profile", key: "nav.profile" },
 ] as const;
 
 /** Geschützter Bereich: ohne Sitzung Weiterleitung zur Anmeldung (mit Rücksprung). */
@@ -47,13 +47,16 @@ function Shell() {
         ))}
         <div className="flex-1" />
         <div className="mx-2 mt-4 border-t border-border pt-3">
-          <p className="m-0 truncate text-sm font-semibold" title={user?.displayName}>{user?.displayName}</p>
-          <p className="hint m-0 truncate" title={user?.email}>{user?.email}</p>
+          <NavLink to="/profile" aria-label={t("nav.openProfile")} title={t("nav.openProfile")} className={({ isActive }) => `block rounded-lg px-2 py-1.5 no-underline ${isActive ? "bg-soft text-primary" : "text-text hover:bg-bg"}`} onClick={() => setOpen(false)}>
+            <span className="block truncate text-sm font-semibold">{user?.displayName}</span>
+            <span className="hint block truncate">{user?.email}</span>
+          </NavLink>
           <Button size="sm" className="mt-2" onClick={() => void logout()}>{t("nav.logout")}</Button>
         </div>
       </nav>
 
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-4xl p-4 md:p-7">
+        <Shortcuts />
         {user && <OfflineManager userId={user.id} />}
         <Outlet />
       </main>

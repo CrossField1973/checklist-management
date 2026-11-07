@@ -233,11 +233,4 @@ describe("Deaktivieren und Wiederherstellungscodes erneuern", () => {
     const res = await ctx.app.inject({ method: "POST", url: "/api/v1/auth/login", payload: { email: "bob@example.org", password: GOOD_PASSWORD } });
     expect(res.statusCode).toBe(200);
   });
-
-  it("taucht im Konto-Export als twoFactorEnabled auf – ohne Geheimnisse", async () => {
-    const { secret, recoveryCodes } = await enable2fa();
-    const body = (await anna.get("/api/v1/me/export")).body;
-    expect(JSON.parse(body).account.twoFactorEnabled).toBe(true);
-    for (const s of [secret, recoveryCodes[0]!, recoveryCodes[0]!.replace("-", ""), "totp"]) expect(body).not.toContain(s);
-  });
 });

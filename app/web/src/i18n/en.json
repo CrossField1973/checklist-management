@@ -26,6 +26,8 @@
     "archive": "Archive",
     "trash": "Trash",
     "profile": "Profile",
+    "openProfile": "Open profile",
+    "profileSections": "Profile sections",
     "logout": "Sign out"
   },
   "notFound": {
@@ -133,10 +135,6 @@
     "account": {
       "title": "Account",
       "language": "Language",
-      "theme": "Appearance",
-      "themeSystem": "Same as device",
-      "themeLight": "Light",
-      "themeDark": "Dark",
       "trash": "Empty trash automatically after",
       "trashHint": "The archive is never emptied automatically.",
       "trashNever": "Never",
@@ -246,13 +244,12 @@
     },
     "data": {
       "title": "Data",
-      "description": "Export your data or import templates and checklists.",
+      "description": "Export all templates or import templates.",
       "exportTitle": "Export",
-      "exportAll": "Export all data (JSON)",
-      "exportAccount": "Account export (GDPR)",
-      "exportHint": "You can export single templates and checklists later directly there as JSON, CSV or Markdown. The account export additionally contains your profile and trash, but no passwords or tokens.",
+      "exportAll": "Export all templates (JSON)",
+      "exportHint": "Contains all templates with items and tags, no passwords or tokens. You can export single templates and checklists directly there.",
       "importTitle": "Import",
-      "importHint": "JSON (export format) or CSV with the columns template, level, title, description. Imports always create new entries; you check a preview first.",
+      "importHint": "JSON (export format) or CSV with the columns Vorlage, Ebene, Titel, Beschreibung. Only templates are imported, always as new entries; you check a preview first.",
       "file": "Choose file",
       "format": "Format",
       "csvTitle": "Template name (only if the CSV has no “Vorlage” column)",
@@ -263,12 +260,11 @@
       "issues_one": "{{count}} problem found – nothing will be imported:",
       "issues_other": "{{count}} problems found – nothing will be imported:",
       "moreIssues": "… and {{count}} more.",
-      "previewOk": "Ready to import: {{templates}} templates, {{runs}} checklists, {{items}} items.",
+      "previewOk": "Ready to import: {{templates}} templates, {{items}} items.",
       "previewTemplate": "Template “{{title}}” ({{count}} items)",
-      "previewRun": "Checklist “{{title}}” ({{done}} of {{total}} done)",
       "newTags": "New tags: {{tags}}",
       "alwaysNew": "The import always creates new entries and never overwrites anything.",
-      "imported": "Imported: {{templates}} templates, {{runs}} checklists, {{items}} items."
+      "imported": "Imported: {{templates}} templates, {{items}} items."
     },
     "delete": {
       "title": "Delete account",
@@ -278,28 +274,59 @@
       "dialogTitle": "Delete account permanently?",
       "warning": "All your data is deleted immediately and irrevocably. Export it first if you want to keep it.",
       "confirm": "Delete account permanently"
+    },
+    "display": {
+      "title": "Appearance",
+      "description": "Applies to your whole account on all devices and takes effect immediately.",
+      "theme": "Theme",
+      "themeSystem": "Same as device",
+      "themeLight": "Light",
+      "themeDark": "Dark",
+      "accent": "Accent colour",
+      "accents": {
+        "blue": "Blue",
+        "indigo": "Indigo",
+        "violet": "Violet",
+        "rose": "Rose",
+        "orange": "Orange",
+        "green": "Green",
+        "teal": "Teal",
+        "slate": "Grey"
+      },
+      "fontSize": "Text size",
+      "fontSizeHint": "Enlarges text and spacing throughout the app.",
+      "fontNormal": "Normal",
+      "fontLarge": "Large",
+      "fontXLarge": "Extra large"
+    },
+    "tags": {
+      "title": "Tags",
+      "description": "Tags mark templates with a colour. Here you rename tags, change their colours, delete them or create new ones."
+    },
+    "security": {
+      "title": "Security"
     }
   },
   "tags": {
-    "title": "Manage tags",
     "intro": "Tags mark templates with a color. They apply to templates only, not to checklists.",
     "empty": "You have no tags yet.",
     "colorOf": "Color of {{name}}",
     "nameOf": "Name of {{name}}",
-    "usedBy_one": "{{count}} template",
-    "usedBy_other": "{{count}} templates",
     "delete": "Delete tag {{name}}",
-    "confirmDelete": "Delete tag “{{name}}”?",
     "newName": "New tag",
     "newHint": "The color is chosen automatically so that it differs clearly from your other tags. You can change it later.",
-    "create": "Create tag"
+    "create": "Create tag",
+    "hex": "Hex colour value",
+    "deleteTitle": "Delete tag “{{name}}”?",
+    "deleteText_one": "This tag is used in {{count}} template. Do you really want to delete it? Only the assignment to the template is removed.",
+    "deleteText_other": "This tag is used in {{count}} templates. Do you really want to delete it? Only the assignment to the templates is removed.",
+    "deleteUnused": "This tag is not used in any template. Do you really want to delete it?"
   },
   "templates": {
     "new": "New template",
     "newTitle": "New template",
     "titleLabel": "Title",
     "create": "Create",
-    "manageTags": "Manage tags",
     "search": "Search",
     "searchPlaceholder": "Search titles…",
     "sort": "Sort by",
@@ -314,7 +341,6 @@
     "items_one": "{{count}} item",
     "items_other": "{{count}} items",
     "changed": "changed on {{date}}",
-    "editNamed": "Edit template {{title}}",
     "duplicate": "Duplicate",
     "duplicateNamed": "Duplicate template {{title}}",
     "duplicated": "The copy has been created.",
@@ -323,7 +349,8 @@
     "deleteText": "“{{title}}” is moved to the trash and can be restored there. Checklists that were already started stay unchanged.",
     "deleted": "“{{title}}” was moved to the trash.",
     "pagination": "Pages",
-    "pageOf": "Page {{page}} of {{pages}}"
+    "pageOf": "Page {{page}} of {{pages}}",
+    "continueToItems": "Continue to items"
   },
   "editor": {
     "back": "All templates",
@@ -339,8 +366,12 @@
     "items": "Items",
     "itemsHint": "{{count}} items in total. Drag the handle ⋮⋮ to reorder – or use the buttons ↑ ↓ ← →.",
     "export": "Export",
-    "exportHint": "Download as a file: JSON (complete, can be imported again), CSV (table) or Markdown (readable, printable).",
-    "csvExcel": "CSV for Excel (semicolon)"
+    "created": "The template was created.",
+    "createButton": "Create",
+    "creatingHeading": "New template: {{title}}",
+    "createHint": "The template is only saved when you click “Create”. If you leave this page first, everything is discarded.",
+    "exportCsvHint": "Table with semicolons, opens directly in Excel.",
+    "exportJsonHint": "Complete, can be imported again."
   },
   "items": {
     "listLabel": "Template items",
@@ -381,7 +412,8 @@
       "over": "{{title}} is over {{target}}.",
       "end": "Dropped {{title}}.",
       "cancel": "Moving {{title}} cancelled."
-    }
+    },
+    "apply": "Apply"
   },
   "runs": {
     "new": "New checklist",
@@ -399,7 +431,7 @@
     "searchPlaceholder": "Search titles…",
     "noResults": "No matching checklist found.",
     "empty": "No checklist yet. Start one from one or more templates – or from scratch.",
-    "archiveIntro": "Archived checklists are kept permanently and are read-only. You can reopen them.",
+    "archiveIntro": "Archived checklists are kept permanently and are read-only. You can restore them.",
     "archiveEmpty": "The archive is empty.",
     "count_one": "{{count}} checklist",
     "count_other": "{{count}} checklists",
@@ -408,9 +440,9 @@
     "noSections": "No sections",
     "shared": "Shared",
     "progressOf": "Progress of {{title}}",
-    "reopen": "Reopen",
-    "reopenNamed": "Reopen {{title}}",
-    "reopened": "“{{title}}” is active again.",
+    "reopen": "Restore",
+    "reopenNamed": "Restore {{title}}",
+    "reopened": "“{{title}}” was restored.",
     "deleteNamed": "Delete {{title}}",
     "deleteTitle": "Delete checklist?",
     "deleteText": "“{{title}}” is moved to the trash and can be restored there.",
@@ -458,7 +490,20 @@
     "titleHint": "Suggested from the templates – you can change it.",
     "newTemplate": "Create a template",
     "step1": "1. Create a template (e.g. a packing list)",
-    "step2": "2. Start a checklist from it and tick items off"
+    "step2": "2. Start a checklist from it and tick items off",
+    "dropHere": "Drop here",
+    "sectionEnd": "end of the section",
+    "sectionUp": "Move section {{title}} up",
+    "sectionDown": "Move section {{title}} down",
+    "sectionOrder": "Order of {{title}}",
+    "a11y": {
+      "instructions": "To move, press Space, use the arrow keys to move up or down (also into other sections) and press Space to drop. Escape cancels. Use the buttons on the item to indent or outdent."
+    },
+    "exportJsonHint": "Complete, can be imported again.",
+    "exportCsvHint": "Table with semicolons, opens directly in Excel.",
+    "exportMdHint": "Readable text with checkboxes.",
+    "exportPrintHint": "Opens the browser print dialog (also for PDF).",
+    "print": "Print"
   },
   "share": {
     "title": "Share checklist",
@@ -527,5 +572,21 @@
     },
     "waiting": "waiting to be sent",
     "dismiss": "OK"
+  },
+  "leave": {
+    "title": "Leave this page?",
+    "text": "You have unsaved changes. If you leave this page they will be discarded.",
+    "stay": "Stay on page",
+    "leave": "Leave and discard"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "save": "Save or create (template)",
+    "new": "New template or new checklist (on the respective list)",
+    "search": "Search the list",
+    "help": "Show this help",
+    "close": "Close dialog",
+    "hint": "Single keys only work when you are not in a text field. On a Mac, use Cmd instead of Ctrl.",
+    "description": "The keyboard makes many things faster. Press ? anywhere to open the help with all shortcuts."
   }
 }

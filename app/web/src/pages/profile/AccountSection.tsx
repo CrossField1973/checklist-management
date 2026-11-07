@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
-import type { Language, Theme, User } from "../../api/types";
+import type { Language, User } from "../../api/types";
 import { useAuth } from "../../auth/AuthProvider";
 import { Alert, Button, Card, Select, TextInput, useErrorText } from "../../components/ui";
 
@@ -17,7 +17,6 @@ export function AccountSection() {
   const [displayName, setDisplayName] = useState(u.displayName);
   const [email, setEmail] = useState(u.email);
   const [language, setLanguage] = useState<Language>(u.language);
-  const [theme, setTheme] = useState<Theme>(u.theme);
   const [retention, setRetention] = useState(toRetention(u.trashRetentionDays));
   const [currentPassword, setCurrentPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -33,11 +32,11 @@ export function AccountSection() {
     setSaved(false);
     try {
       const res = await api.put<{ user: User }>("/me", {
-        displayName, language, theme,
+        displayName, language,
         trashRetentionDays: retention === "never" ? null : Number(retention),
         ...(emailChanged ? { email, currentPassword } : {}),
       });
-      setUser(res.user); // Sprache und Design wirken sofort
+      setUser(res.user); // Die Sprache wirkt sofort
       setCurrentPassword("");
       setSaved(true);
     } catch (err) {
@@ -55,15 +54,10 @@ export function AccountSection() {
         {emailChanged && u.hasPassword && (
           <TextInput label={t("profile.account.passwordForEmail")} hint={t("profile.account.passwordForEmailHint")} type="password" autoComplete="current-password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
         )}
-        <div className="grid gap-x-4 sm:grid-cols-2">
+        <div className="grid gap-x-4">
           <Select label={t("profile.account.language")} value={language} onChange={(e) => setLanguage(e.target.value as Language)}>
             <option value="de">Deutsch</option>
             <option value="en">English</option>
-          </Select>
-          <Select label={t("profile.account.theme")} value={theme} onChange={(e) => setTheme(e.target.value as Theme)}>
-            <option value="system">{t("profile.account.themeSystem")}</option>
-            <option value="light">{t("profile.account.themeLight")}</option>
-            <option value="dark">{t("profile.account.themeDark")}</option>
           </Select>
         </div>
         <Select label={t("profile.account.trash")} hint={t("profile.account.trashHint")} value={retention} onChange={(e) => setRetention(e.target.value)}>

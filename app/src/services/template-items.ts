@@ -19,7 +19,7 @@ export interface ItemNode {
 }
 
 export class ItemError extends Error {
-  constructor(public code: "parent_not_found" | "cycle" | "too_deep" | "not_found") {
+  constructor(public code: "parent_not_found" | "cycle" | "too_deep" | "not_found" | "too_many_items") {
     super(code);
   }
 }
@@ -121,6 +121,36 @@ export function moveItem(db: Db, item: Item, newParentId: string | null, positio
       renumber(tx, siblingIds(tx, item.templateId, oldParentId, item.id));
     }
   });
+}
+
+/** Obergrenze der Punkte, die auf einmal geschrieben werden (Anlegen/Speichern einer ganzen Vorlage). */
+export const MAX_BULK_ITEMS = 5000;
+
+export interface ItemInput { title: string; description?: string | null; children?: ItemInput[] }
+
+/**
+ * Ersetzt alle Punkte einer Vorlage durch den übergebenen Baum (Reihenfolge = Position). Punkt-IDs werden neu vergeben;
+ * sie werden nirgends sonst referenziert (Durchführungen sind Momentaufnahmen).
+ */
+export function replaceItems(db: Conn, templateId: string, tree: ItemInput[]): void {
+  let count = 0;
+  const check = (nodes: ItemInput[], depth: number) => {
+    if (depth > MAX_DEPTH) throw new ItemError("too_deep");
+    for (const n of nodes) {
+      if (++count > MAX_BULK_ITEMS) throw new ItemError("too_many_items");
+      check(n.children ?? [], depth + 1);
+    }
+  };
+  check(tree, 1);
+  db.delete(schema.templateItems).where(eq(schema.templateItems.templateId, templateId)).run();
+  const insert = (nodes: ItemInput[], parentItemId: string | null) => {
+    nodes.forEach((n, position) => {
+      const [row] = db.insert(schema.templateItems)
+        .values({ templateId, parentItemId, title: n.title, description: n.description ?? null, position }).returning().all();
+      insert(n.children ?? [], row!.id);
+    });
+  };
+  insert(tree, null);
 }
 
 /** Löscht einen Punkt samt Unterpunkten (Cascade) und schließt die Lücke bei den Geschwistern. */

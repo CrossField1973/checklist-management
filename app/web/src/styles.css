@@ -66,8 +66,28 @@
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
+
+/* Akzentfarben (Einstellung im Profil → Darstellung). Je Farbe: hell (p, s, f) und dunkel (dp, ds, df) für Primärfarbe, weiche Fläche und Fokus.
+   „blau“ ist der Standard und braucht kein Attribut. Kontraste prüft web/src/test/a11y.test.tsx. */
+:root[data-accent="indigo"] { --ac-p: #4f46e5; --ac-s: #eef0ff; --ac-f: #4338ca; --ac-dp: #a5b4fc; --ac-ds: #262a4d; --ac-df: #c7d2fe; }
+:root[data-accent="violet"] { --ac-p: #7c3aed; --ac-s: #f3eeff; --ac-f: #6d28d9; --ac-dp: #c4b5fd; --ac-ds: #2d2548; --ac-df: #ddd6fe; }
+:root[data-accent="rose"] { --ac-p: #be185d; --ac-s: #fff0f6; --ac-f: #9d174d; --ac-dp: #f9a8d4; --ac-ds: #43202f; --ac-df: #fbcfe8; }
+:root[data-accent="orange"] { --ac-p: #c2410c; --ac-s: #fff4ec; --ac-f: #9a3412; --ac-dp: #fdba74; --ac-ds: #40291a; --ac-df: #fed7aa; }
+:root[data-accent="green"] { --ac-p: #15803d; --ac-s: #ecfdf3; --ac-f: #166534; --ac-dp: #86efac; --ac-ds: #1c3326; --ac-df: #bbf7d0; }
+:root[data-accent="teal"] { --ac-p: #0f766e; --ac-s: #ecfdfa; --ac-f: #115e59; --ac-dp: #5eead4; --ac-ds: #17332f; --ac-df: #99f6e4; }
+:root[data-accent="slate"] { --ac-p: #475569; --ac-s: #f1f5f9; --ac-f: #334155; --ac-dp: #cbd5e1; --ac-ds: #2a3140; --ac-df: #e2e8f0; }
+:root[data-accent] { --primary: var(--ac-p); --soft: var(--ac-s); --focus: var(--ac-f); }
+:root[data-theme="dark"][data-accent] { --primary: var(--ac-dp); --soft: var(--ac-ds); --focus: var(--ac-df); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"])[data-accent] { --primary: var(--ac-dp); --soft: var(--ac-ds); --focus: var(--ac-df); }
+}
+
+/* Schriftgröße (Einstellung im Profil → Darstellung): alle Größen sind rem-basiert und wachsen mit */
+:root[data-fontsize="large"] { font-size: 112.5%; }
+:root[data-fontsize="xlarge"] { font-size: 125%; }
+
 html { background: var(--bg); }
-body { margin: 0; font-family: var(--font-sans); font-size: 15px; line-height: 1.5; color: var(--text); background: var(--bg); }
+body { margin: 0; font-family: var(--font-sans); font-size: 0.9375rem; line-height: 1.5; color: var(--text); background: var(--bg); }
 h1, h2, h3 { line-height: 1.25; }
 
 /* Sichtbarer Fokus für Tastaturbedienung (WCAG 2.4.7) */
@@ -106,3 +126,10 @@ h1, h2, h3 { line-height: 1.25; }
 }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Drucken: nur der Inhalt, ohne Navigation und Bedienelemente */
+@media print {
+  nav, header, .no-print, .skip-link, button { display: none !important; }
+  .md\:grid { display: block !important; }
+  body { background: #fff; color: #000; }
+}

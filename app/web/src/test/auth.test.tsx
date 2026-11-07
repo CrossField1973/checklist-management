@@ -56,7 +56,8 @@ describe("Anmelden", () => {
     expect(await heading("Meine Checklisten")).toBeInTheDocument();
     expect(api.callsTo("POST /auth/login")[0]!.body).toEqual({ email: "anna@example.org", password: "Kaffeetasse-Wolke-42" });
     const nav = screen.getByRole("navigation", { name: "Hauptnavigation" });
-    for (const name of ["Meine Checklisten", "Vorlagen", "Archiv", "Papierkorb", "Profil"]) expect(within(nav).getByRole("link", { name })).toBeInTheDocument();
+    for (const name of ["Meine Checklisten", "Vorlagen", "Archiv", "Papierkorb"]) expect(within(nav).getByRole("link", { name })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Profil öffnen" })).toHaveAttribute("href", "/profile"); // Benutzer unten links
   });
 
   it("zeigt bei falschen Zugangsdaten eine Fehlermeldung (als Alert) und bleibt auf der Seite", async () => {

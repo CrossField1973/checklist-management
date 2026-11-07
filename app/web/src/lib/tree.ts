@@ -179,3 +179,104 @@ export function isSamePlace(tree: ItemNode[], id: string, target: MoveTarget): b
   const p = placeOf(tree, id);
   return !!p && p.parentId === target.parentItemId && p.index === Math.min(target.position, p.siblings.length - 1);
 }
+
+// ---------- Lokaler Entwurf: Bearbeiten ohne Serveraufruf (Speichern überträgt den ganzen Baum) ----------
+
+/** Fügt einen Punkt mit vorläufiger ID ans Ende der Geschwister von `parentId` an (null = oberste Ebene). */
+export function addToTree(tree: ItemNode[], title: string, parentId: string | null): ItemNode[] {
+  const node: ItemNode = { id: `tmp-${crypto.randomUUID()}`, title, description: null, position: 0, children: [] };
+  return parentId === null ? renumber([...tree, node]) : addChild(tree, node, parentId);
+}
+
+function addChild(nodes: ItemNode[], node: ItemNode, parentId: string): ItemNode[] {
+  return nodes.map((n) => (n.id === parentId ? { ...n, children: renumber([...n.children, node]) } : { ...n, children: addChild(n.children, node, parentId) }));
+}
+
+export function updateInTree(tree: ItemNode[], id: string, patch: { title: string; description: string | null }): ItemNode[] {
+  return tree.map((n) => (n.id === id ? { ...n, ...patch } : { ...n, children: updateInTree(n.children, id, patch) }));
+}
+
+export function removeFromTree(tree: ItemNode[], id: string): ItemNode[] {
+  return renumber(tree.filter((n) => n.id !== id).map((n) => ({ ...n, children: removeFromTree(n.children, id) })));
+}
+
+export interface ItemInput { title: string; description?: string | null; children?: ItemInput[] }
+
+/** Baum in die Form für `POST/PUT /templates` (ohne IDs; die Reihenfolge ergibt die Positionen). */
+export function toInput(tree: ItemNode[]): ItemInput[] {
+  return tree.map((n) => ({ title: n.title, description: n.description, ...(n.children.length ? { children: toInput(n.children) } : {}) }));
+}
+
+// ---------- Mehrere Abschnitte (Checklisten): Ziehen über Abschnittsgrenzen ----------
+
+export interface BoardTarget { sectionId: string; parentItemId: string | null; position: number }
+
+/**
+ * Verschiebt einen Punkt samt Unterpunkten innerhalb oder zwischen Abschnitten (unveränderlich; Semantik wie
+ * `POST /run-items/:id/move`). Gibt `null` zurück, wenn Punkt, Abschnitt oder Elternpunkt fehlen oder ein Zyklus entstünde.
+ * Fortschrittszähler werden nicht angepasst – die Antwort des Servers ersetzt den Zwischenstand.
+ */
+export function moveBetweenSections<N extends ItemNode, S extends { id: string; items: N[] }>(sections: S[], id: string, target: BoardTarget): S[] | null {
+  const from = sections.find((s) => findNode(s.items, id));
+  const to = sections.find((s) => s.id === target.sectionId);
+  if (!from || !to) return null;
+  if (from.id === to.id) {
+    const moved = moveInTree(from.items, id, target.parentItemId, target.position);
+    return moved ? sections.map((s) => (s.id === from.id ? { ...s, items: moved as N[] } : s)) : null;
+  }
+  const node = findNode(from.items, id) as N;
+  if (target.parentItemId !== null && !findNode(to.items, target.parentItemId)) return null;
+  const rest = removeFromTree(from.items, id) as N[];
+  let inserted: N[];
+  if (target.parentItemId === null) {
+    const list = [...to.items];
+    list.splice(Math.min(Math.max(target.position, 0), list.length), 0, node);
+    inserted = renumber(list) as N[];
+  } else {
+    inserted = insertUnder(to.items, target.parentItemId, node, target.position) as N[];
+  }
+  return sections.map((s) => (s.id === from.id ? { ...s, items: rest } : s.id === to.id ? { ...s, items: inserted } : s));
+}
+
+export interface BoardRow { id: string; sectionId: string; parentId: string | null; depth: number; isEnd: boolean }
+export interface BoardProjection { sectionId: string; depth: number; parentId: string | null; position: number }
+
+/**
+ * Wohin fiele ein gezogener Punkt auf einer Seite mit mehreren Abschnitten? `rows` ist die sichtbare Reihenfolge aller Abschnitte;
+ * je Abschnitt steht am Ende eine Zeile `isEnd` (Ablageziel für „ans Ende“ und für leere Abschnitte). Der Zielabschnitt ist
+ * der der Zeile unter dem Zeiger; die Ebene folgt wie beim Punktebaum der horizontalen Bewegung (`offsetX` in Pixel).
+ * `descendants` sind die Unterpunkte des gezogenen Punkts (wandern mit).
+ */
+export function getBoardProjection(rows: readonly BoardRow[], activeId: string, overId: string, offsetX: number, indentWidth: number, descendants: ReadonlySet<string>): BoardProjection | null {
+  const active = rows.find((r) => r.id === activeId && !r.isEnd);
+  const overIndex = rows.findIndex((r) => r.id === overId);
+  const activeIndex = rows.findIndex((r) => r.id === activeId);
+  if (!active || overIndex < 0) return null;
+  const over = rows[overIndex]!;
+  const sectionId = over.sectionId;
+  // Reihenfolge im Zielabschnitt ohne den gezogenen Punkt und ohne seine Unterpunkte
+  const list = rows.filter((r) => r.sectionId === sectionId && !r.isEnd && r.id !== activeId && !descendants.has(r.id));
+  const before = (limit: number) => list.filter((r) => rows.indexOf(r) < limit).length;
+  let idx: number;
+  if (over.isEnd) idx = list.length;
+  else if (over.id === activeId) idx = before(activeIndex); // unverändert über sich selbst
+  else {
+    const k = list.findIndex((r) => r.id === over.id);
+    idx = k < 0 ? before(overIndex) : k + (activeIndex < overIndex ? 1 : 0); // nach unten gezogen: hinter die Zielzeile, sonst davor
+  }
+  const previous = list[idx - 1];
+  const next = list[idx];
+  const dragDepth = Math.round(offsetX / indentWidth);
+  const maxDepth = previous ? previous.depth + 1 : 0;
+  const minDepth = next ? next.depth : 0;
+  const depth = Math.min(Math.max(active.depth + dragDepth, minDepth), Math.max(maxDepth, minDepth));
+
+  let parentId: string | null = null;
+  if (depth > 0 && previous) {
+    if (depth === previous.depth) parentId = previous.parentId;
+    else if (depth > previous.depth) parentId = previous.id;
+    else parentId = list.slice(0, idx).reverse().find((r) => r.depth === depth)?.parentId ?? null;
+  }
+  const position = list.slice(0, idx).filter((r) => r.parentId === parentId && r.depth === depth).length;
+  return { sectionId, depth, parentId, position };
+}

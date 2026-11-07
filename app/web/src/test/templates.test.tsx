@@ -87,18 +87,25 @@ describe("Vorlagenliste (F-11)", () => {
     expect(await screen.findByText("Keine Vorlage gefunden.")).toBeInTheDocument();
   });
 
-  it("legt eine Vorlage an und öffnet sofort den Editor", async () => {
-    const api = templatesApi();
-    api.on("POST /templates", ({ body }) => ({ status: 201, body: { template: detail({ id: "t1", title: body.title, items: [] }) } }));
-    api.on("GET /templates/t1", () => ({ body: { template: detail({ title: "Packliste", items: [] }) } }));
+  it("zeigt Duplizieren und Löschen als Symbole (mit Namen für Screenreader)", async () => {
+    templatesApi();
+    renderApp("/templates");
+    const li = (await screen.findByText("Tagesausflug")).closest("li")!;
+    expect(within(li).queryByRole("link", { name: /bearbeiten/ })).not.toBeInTheDocument(); // Bearbeiten = Klick auf die Zeile
+    for (const name of ["Vorlage Tagesausflug duplizieren", "Vorlage Tagesausflug löschen"]) {
+      const el = within(li).getByRole("button", { name });
+      expect(el.textContent).toBe(""); // nur Symbol, kein Text
+      expect(el.querySelector("svg")).not.toBeNull();
+    }
+    expect(screen.queryByRole("button", { name: "Tags verwalten" })).not.toBeInTheDocument();
+  });
+
+  it("öffnet die Vorlage bei Klick irgendwo in die Zeile", async () => {
+    templatesApi();
     const { ui } = renderApp("/templates");
-    await ui.click(await screen.findByRole("button", { name: "Neue Vorlage" }));
-    const dialog = await screen.findByRole("dialog", { name: "Neue Vorlage" });
-    expect(within(dialog).getByRole("button", { name: "Anlegen" })).toBeDisabled(); // ohne Titel nicht möglich
-    await ui.type(within(dialog).getByLabelText("Titel"), "Packliste");
-    await ui.click(within(dialog).getByRole("button", { name: "Anlegen" }));
-    expect(api.callsTo("POST /templates")[0]!.body).toEqual({ title: "Packliste" });
-    expect(await screen.findByRole("heading", { name: "Packliste", level: 1 })).toBeInTheDocument();
+    await ui.click((await screen.findByText(/3 Punkte/)).closest("li")!);
+    expect(await screen.findByRole("heading", { name: "Tagesausflug", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeInTheDocument();
   });
 
   it("dupliziert und öffnet die Kopie mit Hinweis", async () => {
@@ -134,80 +141,123 @@ describe("Vorlagenliste (F-11)", () => {
   });
 });
 
-describe("Tags verwalten (F-17, F-18)", () => {
+describe("Tags verwalten (F-17, F-18) – direkt im Profil", () => {
   async function openTags() {
     const api = templatesApi();
-    const r = renderApp("/templates");
-    await r.ui.click(await screen.findByRole("button", { name: "Tags verwalten" }));
-    const dialog = await screen.findByRole("dialog", { name: "Tags verwalten" });
-    await within(dialog).findByLabelText("Name von Reisen");
-    return { api, dialog, ...r };
+    const r = renderApp("/profile?section=tags");
+    const box = within(await screen.findByRole("region", { name: "Tags" }));
+    await box.findByLabelText("Name von Reisen");
+    return { api, box, ...r };
   }
 
+  it("zeigt die Verwaltung ohne Zwischenschritt und ohne Zahl der Vorlagen", async () => {
+    const { box } = await openTags();
+    expect(screen.queryByRole("button", { name: "Tags verwalten" })).not.toBeInTheDocument();
+    expect(box.queryByText(/\d+ Vorlage/)).not.toBeInTheDocument();
+  });
+
   it("legt Tags nur mit Namen an – die Farbe vergibt der Server automatisch", async () => {
-    const { api, dialog, ui } = await openTags();
+    const { api, box, ui } = await openTags();
     api.on("POST /tags", ({ body }) => ({ status: 201, body: { tag: { id: "g3", name: body.name, color: "#9333ea", textColor: "#ffffff" } } }));
-    const create = within(dialog).getByRole("button", { name: "Tag anlegen" });
+    const create = box.getByRole("button", { name: "Tag anlegen" });
     expect(create).toBeDisabled();
-    expect(within(dialog).getByText(/automatisch so gewählt/)).toBeInTheDocument();
-    await ui.type(within(dialog).getByLabelText("Neuer Tag"), "Wandern");
+    expect(box.getByText(/automatisch so gewählt/)).toBeInTheDocument();
+    await ui.type(box.getByLabelText("Neuer Tag"), "Wandern");
     await ui.click(create);
     await waitFor(() => expect(api.callsTo("POST /tags")).toHaveLength(1));
     expect(api.callsTo("POST /tags")[0]!.body).toEqual({ name: "Wandern" }); // keine Farbe gesendet
   });
 
-  it("benennt um und ändert die Farbe beim Verlassen des Felds", async () => {
-    const { api, dialog, ui } = await openTags();
+  it("benennt beim Verlassen des Felds um", async () => {
+    const { api, box, ui } = await openTags();
     api.on("PUT /tags/g1", ({ body }) => ({ body: { tag: { ...TAG_A, ...body } } }));
-    const name = within(dialog).getByLabelText("Name von Reisen");
+    const name = box.getByLabelText("Name von Reisen");
     await ui.clear(name);
     await ui.type(name, "Urlaub");
     await ui.tab();
     await waitFor(() => expect(api.callsTo("PUT /tags/g1")).toHaveLength(1));
     expect(api.callsTo("PUT /tags/g1")[0]!.body).toEqual({ name: "Urlaub" });
-    const color = within(dialog).getByLabelText("Farbe von Reisen") as HTMLInputElement;
-    expect(color).toHaveValue("#2563eb");
-    expect(color.type).toBe("color");
+  });
+
+  it("wählt die Farbe über eigene Farbfelder oder einen Hex-Wert statt des Systemdialogs", async () => {
+    const { api, box, ui } = await openTags();
+    api.on("PUT /tags/g1", ({ body }) => ({ body: { tag: { ...TAG_A, ...body } } }));
+    expect(box.queryByLabelText("Farbe von Reisen", { selector: "input" })).not.toBeInTheDocument(); // kein <input type=color>
+    await ui.click(box.getByRole("button", { name: "Farbe von Reisen" }));
+    const panel = within(box.getByRole("group", { name: "Farbe von Reisen" }));
+    await ui.click(panel.getByRole("button", { name: "#16a34a" }));
+    await waitFor(() => expect(api.callsTo("PUT /tags/g1")).toHaveLength(1));
+    expect(api.callsTo("PUT /tags/g1")[0]!.body).toEqual({ color: "#16a34a" });
+
+    await ui.click(box.getByRole("button", { name: "Farbe von Reisen" }));
+    const hex = within(box.getByRole("group", { name: "Farbe von Reisen" })).getByLabelText("Hex-Farbwert");
+    await ui.clear(hex);
+    await ui.type(hex, "#ABCDEF{Enter}");
+    await waitFor(() => expect(api.callsTo("PUT /tags/g1")).toHaveLength(2));
+    expect(api.callsTo("PUT /tags/g1")[1]!.body).toEqual({ color: "#abcdef" });
+  });
+
+  it("ignoriert ungültige Hex-Werte", async () => {
+    const { api, box, ui } = await openTags();
+    await ui.click(box.getByRole("button", { name: "Farbe von Reisen" }));
+    const hex = within(box.getByRole("group", { name: "Farbe von Reisen" })).getByLabelText("Hex-Farbwert");
+    await ui.clear(hex);
+    await ui.type(hex, "#12{Enter}");
+    expect(api.callsTo("PUT /tags/g1")).toHaveLength(0);
+    expect(hex).toHaveValue("#2563eb");
   });
 
   it("meldet doppelte Namen und stellt den alten Namen wieder her", async () => {
-    const { api, dialog, ui } = await openTags();
+    const { api, box, ui } = await openTags();
     api.on("PUT /tags/g1", () => apiError(409, "tag_name_taken"));
-    const name = within(dialog).getByLabelText("Name von Reisen");
+    const name = box.getByLabelText("Name von Reisen");
     await ui.clear(name);
     await ui.type(name, "Outdoor");
     await ui.tab();
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("existiert bereits");
-    await waitFor(() => expect(within(dialog).getByLabelText("Name von Reisen")).toHaveValue("Reisen"));
+    expect(await box.findByRole("alert")).toHaveTextContent("existiert bereits");
+    await waitFor(() => expect(box.getByLabelText("Name von Reisen")).toHaveValue("Reisen"));
   });
 
-  it("löscht nach Rückfrage und zeigt, wie viele Vorlagen den Tag nutzen", async () => {
-    const { api, dialog, ui } = await openTags();
+  it("fragt vor dem Löschen nach und nennt, in wie vielen Vorlagen der Tag verwendet wird", async () => {
+    const { api, box, ui } = await openTags();
     api.on("DELETE /tags/g1", () => ({ status: 204 }));
-    expect(within(dialog).getByText("2 Vorlagen")).toBeInTheDocument();
-    expect(within(dialog).getByText("1 Vorlage")).toBeInTheDocument();
-    await ui.click(within(dialog).getByRole("button", { name: "Tag Reisen löschen" }));
+    await ui.click(box.getByRole("button", { name: "Tag Reisen löschen" }));
     expect(api.callsTo("DELETE /tags/g1")).toHaveLength(0);
-    const group = within(dialog).getByRole("group", { name: "Tag „Reisen“ löschen?" });
-    await ui.click(within(group).getByRole("button", { name: "Löschen" }));
+    const dialog = await screen.findByRole("dialog", { name: "Tag „Reisen“ löschen?" });
+    expect(dialog).toHaveTextContent("in 2 Vorlagen verwendet");
+    expect(dialog).toHaveTextContent("wirklich löschen");
+    await ui.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+    expect(api.callsTo("DELETE /tags/g1")).toHaveLength(0);
+
+    await ui.click(box.getByRole("button", { name: "Tag Reisen löschen" }));
+    await ui.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Löschen" }));
     await waitFor(() => expect(api.callsTo("DELETE /tags/g1")).toHaveLength(1));
+  });
+
+  it("nennt bei genau einer Vorlage die Einzahl", async () => {
+    const { box, ui } = await openTags();
+    await ui.click(box.getByRole("button", { name: "Tag Outdoor löschen" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("in 1 Vorlage verwendet");
   });
 });
 
 describe("Vorlagen-Editor: Details und Tags (F-12)", () => {
-  it("zeigt Titel, Beschreibung, gewählte Tags und die Punkte als Baum", async () => {
+  it("zeigt Punkte zuerst, darunter Details mit Titel, Beschreibung und gewählten Tags", async () => {
     await openEditor();
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf("Punkte")).toBeLessThan(headings.indexOf("Details"));
     expect(screen.getByLabelText("Titel")).toHaveValue("Tagesausflug");
     expect(screen.getByLabelText("Beschreibung (optional)")).toHaveValue("Für unterwegs");
     expect(await screen.findByRole("button", { name: /Reisen/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /Outdoor/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: "Tags verwalten" })).not.toBeInTheDocument();
     const list = screen.getByRole("list", { name: "Punkte der Vorlage" });
     expect(within(list).getAllByRole("listitem").map((li) => li.textContent?.match(/Rucksack|Sonnencreme|Regenjacke|Route prüfen/)?.[0])).toEqual(["Rucksack", "Sonnencreme", "Regenjacke", "Route prüfen"]);
     expect(screen.getByText("Wetterfest")).toBeInTheDocument(); // Beschreibung des Punkts
     expect(screen.getByText(/4 Punkte insgesamt/)).toBeInTheDocument();
   });
 
-  it("speichert erst bei Änderungen und sendet Titel, Beschreibung und Tags", async () => {
+  it("speichert erst bei Änderungen und sendet Titel, Beschreibung, Tags und den ganzen Punktebaum", async () => {
     const { api, ui } = await openEditor();
     api.on("PUT /templates/t1", ({ body }) => ({ body: { template: detail({ title: body.title, description: body.description, tags: [TAG_A, TAG_B] }) } }));
     const save = screen.getByRole("button", { name: "Speichern" });
@@ -218,7 +268,13 @@ describe("Vorlagen-Editor: Details und Tags (F-12)", () => {
     await ui.click(screen.getByRole("button", { name: /Outdoor/ }));
     await ui.click(save);
     await waitFor(() => expect(api.callsTo("PUT /templates/t1")).toHaveLength(1));
-    expect(api.callsTo("PUT /templates/t1")[0]!.body).toEqual({ title: "Ausflug", description: "Für unterwegs", tagIds: ["g1", "g2"] });
+    expect(api.callsTo("PUT /templates/t1")[0]!.body).toEqual({
+      title: "Ausflug", description: "Für unterwegs", tagIds: ["g1", "g2"],
+      items: [
+        { title: "Rucksack", description: "Wetterfest", children: [{ title: "Sonnencreme", description: null }, { title: "Regenjacke", description: null }] },
+        { title: "Route prüfen", description: null },
+      ],
+    });
     expect(await screen.findByText("Gespeichert.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
@@ -251,57 +307,57 @@ describe("Vorlagen-Editor: Details und Tags (F-12)", () => {
   });
 });
 
-describe("Vorlagen-Editor: Punkte (F-13, F-14)", () => {
-  it("fügt Punkte per Enter hinzu, leert das Feld und behält den Fokus", async () => {
+describe("Vorlagen-Editor: Punkte werden lokal geändert und mit Speichern übertragen (F-13, F-14)", () => {
+  it("fügt Punkte per Enter hinzu, leert das Feld und behält den Fokus – ohne Serveraufruf", async () => {
     const { api, ui } = await openEditor();
-    api.on("POST /templates/t1/items", ({ body }) => ({ status: 201, body: { itemId: "i3", items: [...tree(), n("i3", body.title, [], null, 2)] } }));
     const input = screen.getByLabelText("Neuen Punkt hinzufügen");
     await ui.type(input, "Proviant{Enter}");
     expect(await screen.findByText("Proviant")).toBeInTheDocument();
-    expect(api.callsTo("POST /templates/t1/items")[0]!.body).toEqual({ title: "Proviant" });
+    expect(api.callsTo("POST /templates/t1/items")).toHaveLength(0);
     expect(input).toHaveValue("");
     expect(input).toHaveFocus(); // sofort der nächste Punkt möglich
     expect(screen.getByText(/5 Punkte insgesamt/)).toBeInTheDocument();
+    expect(screen.getByText("Ungespeicherte Änderungen")).toBeInTheDocument();
   });
 
   it("ignoriert leere Eingaben", async () => {
-    const { api, ui } = await openEditor();
+    const { ui } = await openEditor();
     await ui.type(screen.getByLabelText("Neuen Punkt hinzufügen"), "   {Enter}");
-    expect(api.callsTo("POST /templates/t1/items")).toHaveLength(0);
+    expect(screen.queryByText("Ungespeicherte Änderungen")).not.toBeInTheDocument();
   });
 
   it("legt Unterpunkte unter einem Punkt an", async () => {
     const { api, ui } = await openEditor();
-    api.on("POST /templates/t1/items", ({ body }) => ({ status: 201, body: { itemId: "i13", items: [n("i1", "Rucksack", [...tree()[0]!.children, n("i13", body.title, [], null, 2)], "Wetterfest", 0), tree()[1]!] } }));
+    api.on("PUT /templates/t1", () => ({ body: { template: detail() } }));
     await ui.click(screen.getByRole("button", { name: "Unterpunkt zu Rucksack hinzufügen" }));
     await ui.type(await screen.findByLabelText("Neuer Unterpunkt von Rucksack"), "Mütze{Enter}");
     expect(await screen.findByText("Mütze")).toBeInTheDocument();
-    expect(api.callsTo("POST /templates/t1/items")[0]!.body).toEqual({ title: "Mütze", parentItemId: "i1" });
+    await ui.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(api.callsTo("PUT /templates/t1")).toHaveLength(1));
+    expect(api.callsTo("PUT /templates/t1")[0]!.body.items[0].children.map((c: { title: string }) => c.title)).toEqual(["Sonnencreme", "Regenjacke", "Mütze"]);
   });
 
   it("bearbeitet Titel und Beschreibung eines Punkts im Dialog", async () => {
     const { api, ui } = await openEditor();
-    api.on("PUT /template-items/i2", ({ body }) => ({ body: { items: [tree()[0]!, n("i2", body.title, [], body.description, 1)] } }));
     await ui.click(screen.getByRole("button", { name: "Route prüfen bearbeiten" }));
     const dialog = await screen.findByRole("dialog", { name: "Punkt bearbeiten" });
     expect(within(dialog).getByLabelText("Titel")).toHaveValue("Route prüfen");
     await ui.clear(within(dialog).getByLabelText("Titel"));
     await ui.type(within(dialog).getByLabelText("Titel"), "Route und Wetter prüfen");
     await ui.type(within(dialog).getByLabelText("Beschreibung (optional)"), "Komoot");
-    await ui.click(within(dialog).getByRole("button", { name: "Speichern" }));
-    await waitFor(() => expect(api.callsTo("PUT /template-items/i2")).toHaveLength(1));
-    expect(api.callsTo("PUT /template-items/i2")[0]!.body).toEqual({ title: "Route und Wetter prüfen", description: "Komoot" });
+    await ui.click(within(dialog).getByRole("button", { name: "Übernehmen" }));
     expect(await screen.findByText("Route und Wetter prüfen")).toBeInTheDocument();
+    expect(screen.getByText("Komoot")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(api.callsTo("PUT /template-items/i2")).toHaveLength(0);
   });
 
   it("löscht Punkte nach Rückfrage und nennt die Zahl der betroffenen Unterpunkte", async () => {
-    const { api, ui } = await openEditor();
-    api.on("DELETE /template-items/i1", () => ({ body: { items: [n("i2", "Route prüfen", [], null, 0)] } }));
+    const { ui } = await openEditor();
     await ui.click(screen.getByRole("button", { name: "Rucksack löschen" }));
     const dialog = await screen.findByRole("dialog", { name: "Punkt löschen?" });
     expect(dialog).toHaveTextContent("samt 2 Unterpunkten");
-    expect(api.callsTo("DELETE /template-items/i1")).toHaveLength(0);
+    expect(screen.getByText("Rucksack")).toBeInTheDocument(); // noch nicht gelöscht
     await ui.click(within(dialog).getByRole("button", { name: "Löschen" }));
     await waitFor(() => expect(screen.queryByText("Rucksack")).not.toBeInTheDocument());
     expect(screen.queryByText("Sonnencreme")).not.toBeInTheDocument();
@@ -335,45 +391,16 @@ describe("Vorlagen-Editor: Verschieben ohne Ziehen (WCAG 2.5.7)", () => {
     expect(moveBtn("Sonnencreme eine Ebene nach links (ausrücken)")).toBeEnabled();
   });
 
-  it("sendet für ↓, → und ← die richtigen Ziele an den Server", async () => {
+  it("verschiebt mit ↓ und ← sofort lokal, ohne Serveraufruf", async () => {
     const { api, ui } = await openEditor();
-    api.on("POST /template-items/i1/move", () => ({ body: { items: tree() } })); // Antwort lässt den Baum unverändert, damit die weiteren Schritte gelten
     await ui.click(moveBtn("Rucksack nach unten"));
-    await waitFor(() => expect(api.callsTo("POST /template-items/i1/move")).toHaveLength(1));
-    expect(api.callsTo("POST /template-items/i1/move")[0]!.body).toEqual({ parentItemId: null, position: 1 });
-
-    api.on("POST /template-items/i2/move", () => ({ body: { items: tree() } }));
-    await ui.click(moveBtn("Route prüfen eine Ebene nach rechts (einrücken)"));
-    await waitFor(() => expect(api.callsTo("POST /template-items/i2/move")).toHaveLength(1));
-    expect(api.callsTo("POST /template-items/i2/move")[0]!.body).toEqual({ parentItemId: "i1", position: 2 });
-
-    api.on("POST /template-items/i11/move", () => ({ body: { items: tree() } }));
-    await ui.click(moveBtn("Sonnencreme eine Ebene nach links (ausrücken)"));
-    await waitFor(() => expect(api.callsTo("POST /template-items/i11/move")).toHaveLength(1));
-    expect(api.callsTo("POST /template-items/i11/move")[0]!.body).toEqual({ parentItemId: null, position: 1 });
-  });
-
-  it("zeigt das Ergebnis sofort (optimistisch) und übernimmt danach die Antwort des Servers", async () => {
-    const { api, ui } = await openEditor();
-    let release!: () => void;
-    const gate = new Promise<void>((r) => { release = r; });
-    api.on("POST /template-items/i1/move", async () => {
-      await gate;
-      return { body: { items: [n("i2", "Route prüfen", [], null, 0), n("i1", "Rucksack", tree()[0]!.children, "Wetterfest", 1)] } };
-    });
-    await ui.click(moveBtn("Rucksack nach unten"));
-    await waitFor(() => expect(titlesInOrder()).toEqual(["Route prüfen", "Rucksack", "Sonnencreme", "Regenjacke"])); // vor der Antwort
-    release();
-    await waitFor(() => expect(api.callsTo("POST /template-items/i1/move")).toHaveLength(1));
     expect(titlesInOrder()).toEqual(["Route prüfen", "Rucksack", "Sonnencreme", "Regenjacke"]);
-  });
-
-  it("macht eine abgelehnte Verschiebung rückgängig und erklärt den Grund", async () => {
-    const { api, ui } = await openEditor();
-    api.on("POST /template-items/i1/move", () => apiError(422, "cycle"));
-    await ui.click(moveBtn("Rucksack nach unten"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("nicht in sich selbst");
-    await waitFor(() => expect(titlesInOrder()).toEqual(["Rucksack", "Sonnencreme", "Regenjacke", "Route prüfen"])); // Zustand vom Server
+    await ui.click(moveBtn("Sonnencreme eine Ebene nach links (ausrücken)"));
+    expect(titlesInOrder()).toEqual(["Route prüfen", "Rucksack", "Regenjacke", "Sonnencreme"]);
+    await ui.click(moveBtn("Sonnencreme eine Ebene nach rechts (einrücken)"));
+    expect(titlesInOrder()).toEqual(["Route prüfen", "Rucksack", "Regenjacke", "Sonnencreme"]);
+    expect(api.callsTo("POST /template-items/i1/move")).toHaveLength(0);
+    expect(screen.getByText("Ungespeicherte Änderungen")).toBeInTheDocument();
   });
 
   it("bietet an jedem Punkt Griff, Aktionen und sprechende Namen", async () => {
@@ -385,17 +412,125 @@ describe("Vorlagen-Editor: Verschieben ohne Ziehen (WCAG 2.5.7)", () => {
   });
 });
 
+describe("Vorlage bearbeiten: Verlassen mit ungespeicherten Änderungen", () => {
+  it("fragt nach, bleibt auf Wunsch und verwirft beim Verlassen", async () => {
+    const { ui } = await openEditor();
+    await ui.type(screen.getByLabelText("Neuen Punkt hinzufügen"), "Proviant{Enter}");
+    await ui.click(screen.getByRole("link", { name: "← Alle Vorlagen" }));
+    const dialog = await screen.findByRole("dialog", { name: "Seite verlassen?" });
+    expect(dialog).toHaveTextContent("verworfen");
+    await ui.click(within(dialog).getByRole("button", { name: "Auf der Seite bleiben" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByText("Proviant")).toBeInTheDocument();
+
+    await ui.click(screen.getByRole("link", { name: "← Alle Vorlagen" }));
+    await ui.click(within(await screen.findByRole("dialog", { name: "Seite verlassen?" })).getByRole("button", { name: "Verlassen und verwerfen" }));
+    expect(await screen.findByRole("heading", { name: "Vorlagen", level: 1 })).toBeInTheDocument();
+  });
+
+  it("verlässt ohne Rückfrage, wenn alles gespeichert ist", async () => {
+    const { api, ui } = await openEditor();
+    api.on("PUT /templates/t1", () => ({ body: { template: detail() } }));
+    await ui.type(screen.getByLabelText("Neuen Punkt hinzufügen"), "Proviant{Enter}");
+    await ui.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Gespeichert.");
+    await ui.click(screen.getByRole("link", { name: "← Alle Vorlagen" }));
+    expect(await screen.findByRole("heading", { name: "Vorlagen", level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("Vorlage erstellen", () => {
+  async function startCreate(title = "Packliste") {
+    const api = templatesApi();
+    const r = renderApp("/templates");
+    await r.ui.click(await screen.findByRole("button", { name: "Neue Vorlage" }));
+    const dialog = await screen.findByRole("dialog", { name: "Neue Vorlage" });
+    await r.ui.type(within(dialog).getByLabelText("Titel"), title);
+    return { api, dialog, ...r };
+  }
+
+  it("fragt im Dialog nach Titel, Beschreibung und Tags und legt noch nichts an", async () => {
+    const { api, dialog, ui } = await startCreate();
+    expect(within(dialog).getByLabelText("Beschreibung (optional)")).toBeInTheDocument();
+    expect(await within(dialog).findByRole("button", { name: /Reisen/ })).toBeInTheDocument();
+    await ui.click(within(dialog).getByRole("button", { name: "Weiter zu den Punkten" }));
+    expect(await screen.findByRole("heading", { name: "Neue Vorlage: Packliste", level: 1 })).toBeInTheDocument();
+    expect(api.callsTo("POST /templates")).toHaveLength(0);
+  });
+
+  it("verlangt einen Titel", async () => {
+    templatesApi();
+    const { ui } = renderApp("/templates");
+    await ui.click(await screen.findByRole("button", { name: "Neue Vorlage" }));
+    expect(within(await screen.findByRole("dialog")).getByRole("button", { name: "Weiter zu den Punkten" })).toBeDisabled();
+  });
+
+  it("zeigt Punkte vor den Details, aber weder Duplizieren noch Löschen; speichert alles mit Erstellen", async () => {
+    const { api, dialog, ui } = await startCreate();
+    await ui.type(within(dialog).getByLabelText("Beschreibung (optional)"), "Für Reisen");
+    await ui.click(await within(dialog).findByRole("button", { name: /Reisen/ }));
+    await ui.click(within(dialog).getByRole("button", { name: "Weiter zu den Punkten" }));
+    await screen.findByRole("heading", { name: "Neue Vorlage: Packliste", level: 1 });
+
+    expect(screen.queryByRole("button", { name: /Duplizieren/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Löschen/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Exportieren/ })).not.toBeInTheDocument();
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf("Punkte")).toBeLessThan(headings.indexOf("Details"));
+    expect(screen.getByLabelText("Titel")).toHaveValue("Packliste");
+
+    api.on("POST /templates", ({ body }) => ({ status: 201, body: { template: detail({ id: "t1", title: body.title, items: [] }) } }));
+    await ui.type(screen.getByLabelText("Neuen Punkt hinzufügen"), "Zelt{Enter}");
+    await ui.type(screen.getByLabelText("Neuen Punkt hinzufügen"), "Schlafsack{Enter}");
+    await ui.click(screen.getByRole("button", { name: "Erstellen" }));
+    await waitFor(() => expect(api.callsTo("POST /templates")).toHaveLength(1));
+    expect(api.callsTo("POST /templates")[0]!.body).toEqual({
+      title: "Packliste", description: "Für Reisen", tagIds: ["g1"],
+      items: [{ title: "Zelt", description: null }, { title: "Schlafsack", description: null }],
+    });
+    // danach im normalen Bearbeiten-Modus (ohne Rückfrage)
+    expect(await screen.findByText("Die Vorlage wurde erstellt.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Seite verlassen?" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeInTheDocument();
+  });
+
+  it("fragt beim Verlassen ohne Erstellen nach und verwirft sonst alles", async () => {
+    const { api, dialog, ui } = await startCreate();
+    await ui.click(within(dialog).getByRole("button", { name: "Weiter zu den Punkten" }));
+    await screen.findByRole("heading", { name: "Neue Vorlage: Packliste", level: 1 });
+    await ui.click(screen.getByRole("link", { name: "← Alle Vorlagen" }));
+    const leave = await screen.findByRole("dialog", { name: "Seite verlassen?" });
+    await ui.click(within(leave).getByRole("button", { name: "Auf der Seite bleiben" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await ui.click(screen.getByRole("link", { name: "← Alle Vorlagen" }));
+    await ui.click(within(await screen.findByRole("dialog", { name: "Seite verlassen?" })).getByRole("button", { name: "Verlassen und verwerfen" }));
+    expect(await screen.findByRole("heading", { name: "Vorlagen", level: 1 })).toBeInTheDocument();
+    expect(api.callsTo("POST /templates")).toHaveLength(0);
+  });
+
+  it("ohne Startwerte (z. B. nach Neuladen) geht es zurück zur Liste", async () => {
+    templatesApi();
+    renderApp("/templates/new");
+    expect(await screen.findByRole("heading", { name: "Vorlagen", level: 1 })).toBeInTheDocument();
+  });
+});
+
 describe("Vorlagen-Editor: Export, Duplizieren, Löschen", () => {
-  it("lädt JSON, CSV, Excel-CSV und Markdown über die Export-Schnittstelle", async () => {
+  it("bietet den Export als Button mit Auswahl-Dialog an (JSON und CSV)", async () => {
     const { api, ui } = await openEditor();
     api.on("GET /templates/t1/export", () => ({ body: {} }));
     URL.createObjectURL = vi.fn(() => "blob:x");
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
-    const box = within(screen.getByRole("group", { name: "Exportieren" }));
-    for (const name of ["JSON", "CSV", "CSV für Excel (Semikolon)", "Markdown"]) await ui.click(box.getByRole("button", { name }));
-    await waitFor(() => expect(api.callsTo("GET /templates/t1/export")).toHaveLength(4));
-    expect(api.callsTo("GET /templates/t1/export").map((c) => c.path.split("?")[1])).toEqual(["format=json", "format=csv&delimiter=comma", "format=csv&delimiter=semicolon", "format=md"]);
+    await ui.click(screen.getByRole("button", { name: /Exportieren/ }));
+    const dlg = await screen.findByRole("dialog", { name: "Exportieren" });
+    expect(within(dlg).getAllByRole("button").map((b) => b.textContent)).toEqual(["JSON", "CSV", "Abbrechen"]);
+    await ui.click(within(dlg).getByRole("button", { name: "CSV" }));
+    await ui.click(screen.getByRole("button", { name: /Exportieren/ }));
+    await ui.click(within(await screen.findByRole("dialog", { name: "Exportieren" })).getByRole("button", { name: "JSON" }));
+    await waitFor(() => expect(api.callsTo("GET /templates/t1/export")).toHaveLength(2));
+    expect(api.callsTo("GET /templates/t1/export").map((c) => c.path.split("?")[1])).toEqual(["format=csv&delimiter=semicolon", "format=json"]);
     click.mockRestore();
   });
 

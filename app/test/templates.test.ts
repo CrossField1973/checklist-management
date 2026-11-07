@@ -289,3 +289,42 @@ describe("Verschieben per Drag-and-Drop (F-14)", () => {
     expect(mv.statusCode).toBe(422);
   });
 });
+
+describe("Ganze Vorlage in einem Schritt (Anlegen/Speichern mit Punktebaum)", () => {
+  const tree = [{ title: "A", children: [{ title: "A1" }, { title: "A2", description: "Text" }] }, { title: "B" }];
+
+  it("legt eine Vorlage samt Punktebaum in einem Aufruf an", async () => {
+    const res = await anna.post("/api/v1/templates", { title: "Neu", items: tree });
+    expect(res.statusCode).toBe(201);
+    const t = res.json().template;
+    expect(titles(t.items)).toEqual([["A", ["A1", "A2"]], "B"]);
+    expect(t.itemCount).toBe(4);
+    expect(t.items[0].children[1].description).toBe("Text");
+  });
+
+  it("ersetzt beim Ändern alle Punkte; ohne items bleiben sie", async () => {
+    const t = await makeTemplate(anna, "Alt", { items: tree });
+    const keep = await anna.put(`/api/v1/templates/${t.id}`, { title: "Alt 2" });
+    expect(keep.json().template.itemCount).toBe(4);
+    const res = await anna.put(`/api/v1/templates/${t.id}`, { items: [{ title: "X", children: [{ title: "Y" }] }] });
+    expect(titles(res.json().template.items)).toEqual([["X", ["Y"]]]);
+    expect((await anna.put(`/api/v1/templates/${t.id}`, { items: [] })).json().template.itemCount).toBe(0);
+  });
+
+  it("lehnt zu tiefe Bäume ab und lässt die Vorlage unverändert", async () => {
+    const t = await makeTemplate(anna, "Alt", { items: tree });
+    let deep: object = { title: "ende" };
+    for (let i = 0; i < 50; i++) deep = { title: `n${i}`, children: [deep] };
+    const res = await anna.put(`/api/v1/templates/${t.id}`, { items: [deep] });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error).toBe("too_deep");
+    expect((await anna.get(`/api/v1/templates/${t.id}`)).json().template.itemCount).toBe(4);
+    expect((await anna.post("/api/v1/templates", { title: "Tief", items: [deep] })).statusCode).toBe(422);
+  });
+
+  it("fremde Vorlagen lassen sich so nicht ändern", async () => {
+    const bob = await newUser(ctx.app, "bob@example.org", "Bob");
+    const t = await makeTemplate(anna, "Annas", { items: tree });
+    expect((await bob.put(`/api/v1/templates/${t.id}`, { items: [] })).statusCode).toBe(404);
+  });
+});

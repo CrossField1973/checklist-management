@@ -73,8 +73,8 @@ claude mcp add --transport http checklisten https://checklisten.example.org/mcp 
 
 | Werkzeug | Zweck |
 |---|---|
-| `create_template` | Vorlage anlegen (Titel, Beschreibung, Tags) |
-| `update_template` | Titel, Beschreibung, Tags ändern |
+| `create_template` | Vorlage anlegen (Titel, Beschreibung, Tags) – auf Wunsch gleich mit dem **ganzen Punktebaum** (`items`, bis 5 Ebenen) |
+| `update_template` | Titel, Beschreibung, Tags ändern; mit `items` wird der **gesamte Punktebaum ersetzt** (Punkt-IDs ändern sich) |
 | `add_template_item` | Punkt oder Unterpunkt zu einer Vorlage hinzufügen |
 | `update_template_item` | Titel/Beschreibung eines Vorlagenpunkts ändern |
 | `move_template_item` | Vorlagenpunkt verschieben (auch zwischen Ebenen) |
@@ -82,15 +82,23 @@ claude mcp add --transport http checklisten https://checklisten.example.org/mcp 
 | `add_templates_to_run` | Weitere Vorlagen an eine aktive Durchführung anhängen |
 | `add_run_section` | Eigenen leeren Abschnitt in einer aktiven Durchführung anlegen |
 | `add_run_item` | Eigenen Punkt/Unterpunkt in einen Abschnitt einfügen |
+| `add_run_items` | Mehrere Punkte samt Unterpunkten in einem Aufruf an einen Abschnitt (oder unter einen Punkt) hängen |
+| `update_run` | Durchführung umbenennen |
+| `update_run_section` | Abschnitt umbenennen |
+| `move_run_section` | Abschnitt innerhalb der Durchführung umsortieren |
 | `update_run_item` | Punkt **abhaken** oder zurücknehmen, Titel/Beschreibung ändern |
 | `move_run_item` | Durchführungspunkt verschieben (auch in anderen Abschnitt) |
 | `create_tag` | Tag anlegen (Farbe wird automatisch gewählt) |
+| `update_tag` | Tag umbenennen und/oder Farbe ändern |
+| `delete_tag` | Tag löschen (nur die Zuordnung zu Vorlagen verschwindet; als *destruktiv* gekennzeichnet) |
 
 ### Bewusst nicht verfügbar
 
-**Löschen, Abschließen, Archivieren, Wieder öffnen, Teilen/Freigabelinks, Import/Export sowie Konto-, Passwort- und Token-Verwaltung.** Ein Assistent kann also nichts unwiederbringlich entfernen und keine Daten nach außen freigeben. Diese Aktionen bleiben der Oberfläche vorbehalten.
+**Löschen von Vorlagen, Durchführungen und Punkten (nur Tags dürfen gelöscht werden), Abschließen, Archivieren, Wieder öffnen, Teilen/Freigabelinks, Import/Export sowie Konto-, Passwort- und Token-Verwaltung.** Ein Assistent kann also nichts unwiederbringlich entfernen und keine Daten nach außen freigeben. Diese Aktionen bleiben der Oberfläche vorbehalten.
 
 ## 4. Regeln und Verhalten
+
+- **Schlanke Antworten:** Schreibwerkzeuge liefern nur das Geänderte – bei Punkten den Punkt (mit `parentItemId`, bei Durchführungspunkten `sectionId`), bei Durchführungen Kopfdaten und Fortschritt je Abschnitt, bei Vorlagen Kopfdaten und Punktezahl. Den vollständigen Stand liefern `get_template` und `get_run`.
 
 - **Gleiche Regeln wie in der Oberfläche:** Jedes Werkzeug ruft intern die REST-API auf. Validierung, Mandantentrennung, Verschachtelungstiefe (max. 50), Zyklenprüfung und der Schreibschutz archivierter Durchführungen gelten unverändert.
 - **Fehler** erhalten einen Fehlercode und einen Hinweis, z. B. `Fehler 409 (run_not_active). Die Durchführung ist archiviert und damit schreibgeschützt.` – der Assistent kann darauf reagieren.
@@ -104,4 +112,4 @@ claude mcp add --transport http checklisten https://checklisten.example.org/mcp 
 - **HTTPS verwenden:** Der Token gleicht einem Passwort. Betreiben Sie die App hinter einem Reverse Proxy mit TLS ([betrieb.md](betrieb.md)).
 - **Nur mit Token:** Cookie-Sitzungen werden für `/mcp` abgelehnt. Anfragen aus Browsern mit fremdem `Origin` werden abgewiesen (Schutz vor DNS-Rebinding). Rein browserbasierte MCP-Clients von anderen Adressen funktionieren deshalb nicht.
 - **Prompt-Injection:** Texte in Vorlagen und Durchführungen (auch aus geteilten Links und Importen) sind für den Assistenten Daten, können aber Anweisungen enthalten. Für Assistenten, die fremde Inhalte lesen, daher bevorzugt einen Token mit Recht *lesen* verwenden und Änderungen kontrollieren.
-- **Schaden begrenzen:** Selbst ein Token mit Schreibrecht kann nichts löschen oder teilen. Versehentliche Änderungen lassen sich in der Oberfläche korrigieren.
+- **Schaden begrenzen:** Selbst ein Token mit Schreibrecht kann keine Vorlagen, Durchführungen oder Punkte löschen und nichts teilen (nur Tags lassen sich löschen). Versehentliche Änderungen lassen sich in der Oberfläche korrigieren.

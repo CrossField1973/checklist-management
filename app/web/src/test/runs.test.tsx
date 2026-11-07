@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RunDetail, RunItemNode, RunSummary, TemplateSummary, TrashEntry } from "../api/types";
-import { apiError, mockApi, renderApp } from "./harness";
+import { USER, apiError, mockApi, renderApp } from "./harness";
 
 const item = (id: string, title: string, isChecked = false, children: RunItemNode[] = []): RunItemNode => ({
   id, title, description: null, position: 0, isChecked, checkedAt: null,
@@ -87,6 +87,27 @@ describe("Checkliste bearbeiten (F-23 bis F-26)", () => {
     expect(screen.getByRole("progressbar", { name: "Fortschritt von Ausflug Füssen" })).toHaveAttribute("aria-valuenow", "2");
   });
 
+  it("exportiert über einen Button mit Auswahl: JSON, CSV, Markdown und Drucken", async () => {
+    const api = runsApi();
+    api.on("GET /runs/r1/export", () => ({ body: {} }));
+    URL.createObjectURL = vi.fn(() => "blob:x");
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const print = vi.fn();
+    window.print = print;
+    const { ui } = renderApp("/runs/r1");
+    for (const name of ["JSON", "CSV", "Markdown"]) {
+      await ui.click(await screen.findByRole("button", { name: /Exportieren/ }));
+      await ui.click(within(await screen.findByRole("dialog", { name: "Exportieren" })).getByRole("button", { name }));
+    }
+    await waitFor(() => expect(api.callsTo("GET /runs/r1/export")).toHaveLength(3));
+    expect(api.callsTo("GET /runs/r1/export").map((c) => c.path.split("?")[1])).toEqual(["format=json", "format=csv&delimiter=semicolon", "format=md"]);
+    await ui.click(screen.getByRole("button", { name: /Exportieren/ }));
+    await ui.click(within(await screen.findByRole("dialog", { name: "Exportieren" })).getByRole("button", { name: "Drucken" }));
+    await waitFor(() => expect(print).toHaveBeenCalled());
+    click.mockRestore();
+  });
+
   it("macht das Abhaken rückgängig und zeigt den Fehler, wenn der Server ablehnt", async () => {
     const api = runsApi();
     api.on("PUT /run-items/b", () => apiError(409, "run_not_active"));
@@ -158,7 +179,7 @@ describe("Abschließen, Archivieren, Archiv (F-27 bis F-30)", () => {
     expect(screen.getByRole("heading", { name: "Archiv", level: 1 })).toBeInTheDocument();
   });
 
-  it("archivierte Checklisten sind schreibgeschützt und lassen sich wieder öffnen", async () => {
+  it("archivierte Checklisten sind schreibgeschützt und lassen sich wiederherstellen", async () => {
     const api = runsApi();
     api.on("GET /runs/r1", () => ({ body: { run: detail({ status: "archived", archivedAt: 5 }) } }));
     api.on("POST /runs/r1/reopen", () => ({ body: { run: detail() } }));
@@ -166,18 +187,18 @@ describe("Abschließen, Archivieren, Archiv (F-27 bis F-30)", () => {
     expect(await screen.findByRole("checkbox", { name: "Route prüfen" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: /Teilen/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Neuer Punkt in Tagesausflug")).not.toBeInTheDocument();
-    await ui.click(screen.getByRole("button", { name: "Wieder öffnen" }));
+    await ui.click(screen.getByRole("button", { name: "Wiederherstellen" }));
     await waitFor(() => expect(api.callsTo("POST /runs/r1/reopen")).toHaveLength(1));
     await waitFor(() => expect(screen.getByRole("checkbox", { name: "Route prüfen" })).toBeEnabled());
   });
 
-  it("Archivliste: wieder öffnen und löschen (→ Papierkorb)", async () => {
+  it("Archivliste: wiederherstellen und löschen (→ Papierkorb)", async () => {
     const api = runsApi([summary({ status: "archived", archivedAt: 1_700_000_000_000 })]);
     api.on("POST /runs/r1/reopen", () => ({ body: { run: detail() } }));
     api.on("DELETE /runs/r1", () => ({ status: 204 }));
     const { ui } = renderApp("/archive");
     expect(api.callsTo("GET /runs")).toHaveLength(0);
-    await ui.click(await screen.findByRole("button", { name: "Ausflug Füssen wieder öffnen" }));
+    await ui.click(await screen.findByRole("button", { name: "Ausflug Füssen wiederherstellen" }));
     await waitFor(() => expect(api.callsTo("POST /runs/r1/reopen")).toHaveLength(1));
     expect(new URL(api.callsTo("GET /runs")[0]!.path, "http://x").searchParams.get("status")).toBe("archived");
     await ui.click(await screen.findByRole("button", { name: "Ausflug Füssen löschen" }));
@@ -330,15 +351,27 @@ describe("Bedienung (UX)", () => {
     expect(within(dialog).getByLabelText("Titel")).toHaveValue("Mein Titel");
   });
 
-  it("blendet erledigte Punkte auf Wunsch aus", async () => {
-    runsApi();
-    const { ui } = renderApp("/runs/r1");
-    expect(await screen.findByRole("checkbox", { name: "Rucksack" })).toBeInTheDocument();
-    await ui.click(screen.getByLabelText("Erledigte ausblenden"));
+  it("blendet erledigte Punkte aus, wenn es im Profil (Darstellung) so eingestellt ist", async () => {
+    const api = runsApi();
+    api.setUser({ ...USER, hideDone: true });
+    renderApp("/runs/r1");
+    expect(await screen.findByRole("checkbox", { name: "Route prüfen" })).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: "Rucksack" })).not.toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Route prüfen" })).toBeInTheDocument();
-    await ui.click(screen.getByLabelText("Erledigte ausblenden"));
-    expect(screen.getByRole("checkbox", { name: "Rucksack" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Erledigte ausblenden")).not.toBeInTheDocument(); // Schalter liegt nicht mehr in der Checkliste
+  });
+
+  it("zeigt erledigte Punkte standardmäßig", async () => {
+    runsApi();
+    renderApp("/runs/r1");
+    expect(await screen.findByRole("checkbox", { name: "Rucksack" })).toBeInTheDocument();
+  });
+
+  it("Klick irgendwo in die Zeile öffnet die Checkliste", async () => {
+    runsApi();
+    const { ui } = renderApp("/");
+    await ui.click((await screen.findByRole("link", { name: /Ausflug Füssen/ })).closest("li")!);
+    expect(await screen.findByRole("heading", { name: "Ausflug Füssen", level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Meine Checklisten", level: 1 })).not.toBeInTheDocument();
   });
 
   it("weist darauf hin, wenn alles erledigt ist", async () => {
@@ -356,5 +389,67 @@ describe("Bedienung (UX)", () => {
     renderApp("/");
     expect(await screen.findByText(/1\. Vorlage anlegen/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Neue Vorlage anlegen" })).toHaveAttribute("href", "/templates");
+  });
+});
+
+describe("Reihenfolge ändern (Abschnitte und Punkte)", () => {
+  const twoSections = (): RunDetail => detail({
+    progress: { done: 1, total: 6 },
+    sections: [
+      { id: "s1", title: "Tagesausflug", position: 0, sourceTemplateId: "t1", progress: { done: 1, total: 4 }, items: [item("a", "Rucksack", true), item("b", "Route prüfen"), item("c", "Proviant", false, [item("d", "Brot")])] },
+      { id: "s2", title: "Therme", position: 1, sourceTemplateId: "t2", progress: { done: 0, total: 2 }, items: [item("e", "Badehose"), item("f", "Handtuch")] },
+    ],
+  });
+  const sectionTitles = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+
+  it("verschiebt Abschnitte mit Pfeilen; Randpfeile sind deaktiviert", async () => {
+    const api = runsApi();
+    api.on("GET /runs/r1", () => ({ body: { run: twoSections() } }));
+    api.on("POST /run-sections/s2/move", () => ({ body: { run: { ...twoSections(), sections: [twoSections().sections[1]!, twoSections().sections[0]!] } } }));
+    const { ui } = renderApp("/runs/r1");
+    await screen.findByRole("heading", { name: "Tagesausflug", level: 2 });
+    expect(screen.getByRole("button", { name: "Abschnitt Tagesausflug nach oben" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Abschnitt Therme nach unten" })).toBeDisabled();
+    await ui.click(screen.getByRole("button", { name: "Abschnitt Therme nach oben" }));
+    expect(sectionTitles()).toEqual(["Therme", "Tagesausflug"]); // sofort sichtbar
+    await waitFor(() => expect(api.callsTo("POST /run-sections/s2/move")).toHaveLength(1));
+    expect(api.callsTo("POST /run-sections/s2/move")[0]!.body).toEqual({ position: 0 });
+    expect(sectionTitles()).toEqual(["Therme", "Tagesausflug"]);
+  });
+
+  it("zeigt keine Verschiebe-Bedienung in archivierten Checklisten", async () => {
+    const api = runsApi();
+    api.on("GET /runs/r1", () => ({ body: { run: { ...twoSections(), status: "archived", archivedAt: 5 } } }));
+    renderApp("/runs/r1");
+    await screen.findByRole("heading", { name: "Tagesausflug", level: 2 });
+    expect(screen.queryByRole("button", { name: /nach oben/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /verschieben/ })).not.toBeInTheDocument();
+  });
+
+  it("Punkte lassen sich mit Pfeilen verschieben und ein-/ausrücken; Ziehgriff ist vorhanden", async () => {
+    const api = runsApi();
+    api.on("GET /runs/r1", () => ({ body: { run: twoSections() } }));
+    api.on("POST /run-items/b/move", () => ({ body: { run: twoSections() } }));
+    api.on("POST /run-items/d/move", () => ({ body: { run: twoSections() } }));
+    const { ui } = renderApp("/runs/r1");
+    await screen.findByRole("checkbox", { name: "Route prüfen" });
+    expect(screen.getByRole("button", { name: /Route prüfen verschieben/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rucksack nach oben" })).toBeDisabled();
+    await ui.click(screen.getByRole("button", { name: "Route prüfen nach oben" }));
+    await waitFor(() => expect(api.callsTo("POST /run-items/b/move")).toHaveLength(1));
+    expect(api.callsTo("POST /run-items/b/move")[0]!.body).toEqual({ sectionId: "s1", parentItemId: null, position: 0 });
+    await ui.click(screen.getByRole("button", { name: "Brot eine Ebene nach links (ausrücken)" }));
+    await waitFor(() => expect(api.callsTo("POST /run-items/d/move")).toHaveLength(1));
+    expect(api.callsTo("POST /run-items/d/move")[0]!.body).toEqual({ sectionId: "s1", parentItemId: null, position: 3 });
+  });
+
+  it("Ziehen ist bei ausgeblendeten Erledigten abgeschaltet (Position wäre unklar)", async () => {
+    const api = runsApi();
+    api.setUser({ ...USER, hideDone: true });
+    api.on("GET /runs/r1", () => ({ body: { run: twoSections() } }));
+    renderApp("/runs/r1");
+    await screen.findByRole("checkbox", { name: "Route prüfen" });
+    expect(screen.queryByRole("button", { name: /Route prüfen verschieben/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abschnitt Therme nach oben" })).toBeEnabled(); // Abschnitte bleiben verschiebbar
   });
 });
