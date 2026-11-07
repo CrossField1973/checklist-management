@@ -587,6 +587,7 @@
     "help": "Diese Hilfe anzeigen",
     "close": "Dialog schließen",
     "hint": "Die Einzeltasten gelten nur, wenn du nicht in einem Textfeld bist. Auf dem Mac gilt Cmd statt Strg.",
-    "description": "Mit der Tastatur geht vieles schneller. Die Hilfe mit allen Kürzeln öffnest du überall mit ?."
+    "description": "Mit der Tastatur geht vieles schneller. Die Hilfe mit allen Kürzeln öffnest du überall mit ?.",
+    "saveKey": "Strg + S"
   }
 }

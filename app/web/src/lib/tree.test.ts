@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   countNodes, descendantIds, findNode, findParentId, flatten, getProjection, indentTarget, isSamePlace, moveDownTarget, moveInTree,
-  moveUpTarget, outdentTarget, getBoardProjection, moveBetweenSections, type BoardRow, type ItemNode,
+  moveUpTarget, outdentTarget, getBoardProjection, moveBetweenSections, withProgress, type BoardRow, type ItemNode,
 } from "./tree";
 
 const n = (id: string, children: ItemNode[] = [], position = 0): ItemNode => ({ id, title: id, description: null, position, children });
@@ -215,5 +215,21 @@ describe("Mehrere Abschnitte: getBoardProjection", () => {
   it("unbekannte Ziele ergeben null", () => {
     expect(proj("B", "nix")).toBeNull();
     expect(proj("end-S1", "B")).toBeNull();
+  });
+});
+
+describe("withProgress", () => {
+  const leaf = (id: string, isChecked: boolean, children: any[] = []) => ({ id, isChecked, childProgress: { done: 9, total: 9 }, children });
+
+  it("zählt alle Ebenen je Unterpunkt-Gruppe, Abschnitt und gesamt neu", () => {
+    const sections = [
+      { id: "s1", progress: { done: 0, total: 0 }, items: [leaf("a", true, [leaf("b", false), leaf("c", true)]), leaf("d", false)] },
+      { id: "s2", progress: { done: 5, total: 5 }, items: [] },
+    ];
+    const r = withProgress(sections);
+    expect(r.sections[0]!.items[0]!.childProgress).toEqual({ done: 1, total: 2 });
+    expect(r.sections[0]!.items[1]!.childProgress).toEqual({ done: 0, total: 0 });
+    expect(r.sections.map((s) => s.progress)).toEqual([{ done: 2, total: 4 }, { done: 0, total: 0 }]);
+    expect(r.progress).toEqual({ done: 2, total: 4 });
   });
 });

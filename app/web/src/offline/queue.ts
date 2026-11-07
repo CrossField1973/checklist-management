@@ -1,3 +1,4 @@
+import { newId } from "../lib/id";
 import { useSyncExternalStore } from "react";
 import { ApiError, api } from "../api/client";
 import { kvDel, kvGet, kvSet } from "./idb";
@@ -44,7 +45,7 @@ export function resetQueue() {
 }
 
 export function enqueue(op: NewOp) {
-  const full = { ...op, id: crypto.randomUUID(), at: Date.now() } as Op;
+  const full = { ...op, id: newId(), at: Date.now() } as Op;
   // Mehrfaches Umschalten desselben Punkts: nur der letzte Wert zählt
   const kept = full.kind === "check" ? state.ops.filter((o) => !(o.kind === "check" && o.itemId === full.itemId)) : state.ops;
   publish([...kept, full]);

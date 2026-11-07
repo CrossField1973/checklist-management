@@ -4,6 +4,8 @@
  * (null = oberste Ebene) an Position `position` unter den dortigen Geschwistern eingefügt (ohne den Punkt selbst gezählt).
  */
 
+import { newId } from "./id";
+
 export interface ItemNode {
   id: string;
   title: string;
@@ -184,7 +186,7 @@ export function isSamePlace(tree: ItemNode[], id: string, target: MoveTarget): b
 
 /** Fügt einen Punkt mit vorläufiger ID ans Ende der Geschwister von `parentId` an (null = oberste Ebene). */
 export function addToTree(tree: ItemNode[], title: string, parentId: string | null): ItemNode[] {
-  const node: ItemNode = { id: `tmp-${crypto.randomUUID()}`, title, description: null, position: 0, children: [] };
+  const node: ItemNode = { id: `tmp-${newId()}`, title, description: null, position: 0, children: [] };
   return parentId === null ? renumber([...tree, node]) : addChild(tree, node, parentId);
 }
 
@@ -279,4 +281,29 @@ export function getBoardProjection(rows: readonly BoardRow[], activeId: string, 
   }
   const position = list.slice(0, idx).filter((r) => r.parentId === parentId && r.depth === depth).length;
   return { sectionId, depth, parentId, position };
+}
+
+interface Counted { isChecked: boolean; childProgress: { done: number; total: number }; children: Counted[] }
+
+/**
+ * Berechnet die Fortschrittszähler (je Unterpunkt-Gruppe, je Abschnitt und für die ganze Checkliste) neu –
+ * gleiche Zählweise wie der Server (alle Ebenen). So stimmen „x/y“ auch im Zwischenstand vor der Antwort des Servers.
+ */
+export function withProgress<N extends Counted, S extends { progress: { done: number; total: number }; items: N[] }>(sections: S[]): { sections: S[]; progress: { done: number; total: number } } {
+  const walk = (list: N[]): { nodes: N[]; done: number; total: number } => {
+    let done = 0;
+    let total = 0;
+    const nodes = list.map((n) => {
+      const sub = walk(n.children as N[]);
+      done += sub.done + (n.isChecked ? 1 : 0);
+      total += sub.total + 1;
+      return { ...n, children: sub.nodes, childProgress: { done: sub.done, total: sub.total } };
+    });
+    return { nodes, done, total };
+  };
+  const out = sections.map((s) => {
+    const r = walk(s.items);
+    return { ...s, items: r.nodes, progress: { done: r.done, total: r.total } };
+  });
+  return { sections: out, progress: out.reduce((a, s) => ({ done: a.done + s.progress.done, total: a.total + s.progress.total }), { done: 0, total: 0 }) };
 }

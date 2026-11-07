@@ -587,6 +587,7 @@
     "help": "Show this help",
     "close": "Close dialog",
     "hint": "Single keys only work when you are not in a text field. On a Mac, use Cmd instead of Ctrl.",
-    "description": "The keyboard makes many things faster. Press ? anywhere to open the help with all shortcuts."
+    "description": "The keyboard makes many things faster. Press ? anywhere to open the help with all shortcuts.",
+    "saveKey": "Ctrl + S"
   }
 }

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, ApiError } from "../../api/client";
 import type { RunItemNode, RunSection } from "../../api/types";
 import { Alert, Button, Spinner, TextInput, useErrorText } from "../../components/ui";
+import { withProgress } from "../../lib/tree";
 import { ProgressBar, RunBoard, type BoardActions } from "./RunBoard";
 
 interface PublicView { permission: "view" | "edit"; run: { title: string; updatedAt: number; sections: RunSection[]; progress: { done: number; total: number } } }
@@ -44,7 +45,7 @@ export default function PublicRun() {
   const base = `/public/runs/${token}`;
   const actions: BoardActions = {
     onCheck: async (item, checked) => {
-      qc.setQueryData<PublicView>(key, (old) => old && { ...old, run: { ...old.run, sections: old.run.sections.map((s) => ({ ...s, items: mapItems(s.items, item.id, checked) })) } });
+      qc.setQueryData<PublicView>(key, (old) => old && { ...old, run: { ...old.run, ...withProgress(old.run.sections.map((s) => ({ ...s, items: mapItems(s.items, item.id, checked) }))) } });
       await call(() => api.put(`${base}/items/${item.id}`, { isChecked: checked }, headers));
     },
     onAdd: (sectionId, title, parentItemId) => call(() => api.post(`${base}/sections/${sectionId}/items`, { title, parentItemId }, headers)),

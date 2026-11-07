@@ -6,7 +6,7 @@ import { Button, Dialog } from "./ui";
 export function ShortcutList() {
   const { t } = useTranslation();
   const rows: [string, string][] = [
-    ["Strg + S", t("shortcuts.save")],
+    [t("shortcuts.saveKey"), t("shortcuts.save")],
     ["N", t("shortcuts.new")],
     ["/", t("shortcuts.search")],
     ["?", t("shortcuts.help")],

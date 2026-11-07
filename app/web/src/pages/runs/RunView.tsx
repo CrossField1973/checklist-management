@@ -8,7 +8,8 @@ import { Alert, Button, Dialog, Spinner, TextInput, useErrorText } from "../../c
 import { useAuth } from "../../auth/AuthProvider";
 import { ExportDialog } from "../../components/ExportDialog";
 import { DownloadIcon } from "../../components/icons";
-import { moveBetweenSections } from "../../lib/tree";
+import { newId } from "../../lib/id";
+import { moveBetweenSections, withProgress } from "../../lib/tree";
 import { enqueue } from "../../offline/queue";
 import { ProgressBar, RunBoard, type BoardActions } from "./RunBoard";
 import { ShareBadgeView } from "./RunsPage";
@@ -22,10 +23,9 @@ const mapItems = (items: RunItemNode[], id: string, checked: boolean): RunItemNo
 const withTempItem = (run: RunDetail, sectionId: string, parentItemId: string | null, node: RunItemNode): RunDetail => {
   const insert = (items: RunItemNode[]): RunItemNode[] =>
     items.map((i) => (i.id === parentItemId ? { ...i, children: [...i.children, node] } : { ...i, children: insert(i.children) }));
-  const total = run.progress.total + 1;
   return {
-    ...run, progress: { ...run.progress, total },
-    sections: run.sections.map((s) => (s.id !== sectionId ? s : { ...s, progress: { ...s.progress, total: s.progress.total + 1 }, items: parentItemId ? insert(s.items) : [...s.items, node] })),
+    ...run,
+    ...withProgress(run.sections.map((s) => (s.id !== sectionId ? s : { ...s, items: parentItemId ? insert(s.items) : [...s.items, node] }))),
   };
 };
 const isOffline = (err: unknown) => err instanceof ApiError && err.status === 0;
@@ -68,11 +68,11 @@ export default function RunView() {
 
   const actions: BoardActions = {
     onCheck: async (item, checked) => {
-      qc.setQueryData<RunDetail>(key, (old) => old && { ...old, sections: old.sections.map((s) => ({ ...s, items: mapItems(s.items, item.id, checked) })) });
+      qc.setQueryData<RunDetail>(key, (old) => old && { ...old, ...withProgress(old.sections.map((s) => ({ ...s, items: mapItems(s.items, item.id, checked) }))) });
       await call(() => api.put(`/run-items/${item.id}`, { isChecked: checked }), () => enqueue({ kind: "check", runId: id, label: item.title, itemId: item.id, checked }));
     },
     onAdd: (sectionId, title, parentItemId) => call(() => api.post(`/run-sections/${sectionId}/items`, { title, parentItemId }), () => {
-      const tempId = `tmp-${crypto.randomUUID()}`;
+      const tempId = `tmp-${newId()}`;
       enqueue({ kind: "add", runId: id, label: title, sectionId, parentItemId, title, tempId });
       const node: RunItemNode = { id: tempId, title, description: null, position: 0, isChecked: false, checkedAt: null, childProgress: { done: 0, total: 0 }, children: [] };
       qc.setQueryData<RunDetail>(key, (old) => old && withTempItem(old, sectionId, parentItemId, node));
@@ -83,7 +83,7 @@ export default function RunView() {
     onMoveItem: async (item, target) => {
       qc.setQueryData<RunDetail>(key, (old) => {
         const sections = old && moveBetweenSections(old.sections, item.id, target);
-        return old && sections ? { ...old, sections } : old;
+        return old && sections ? { ...old, ...withProgress(sections) } : old;
       });
       await call(() => api.post(`/run-items/${item.id}/move`, target));
     },
