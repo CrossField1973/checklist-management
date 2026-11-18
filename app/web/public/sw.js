@@ -9,7 +9,7 @@ self.addEventListener("install", (event) => {
     const html = await res.clone().text();
     await cache.put("/", res);
     // Alle in der Startseite verlinkten Dateien vorab laden, damit schon der erste Offline-Start klappt
-    const assets = [...new Set([...html.matchAll(/(?:src|href)="(\/[^"]+\.(?:js|css|svg|webmanifest))"/g)].map((m) => m[1]))];
+    const assets = [...new Set([...html.matchAll(/(?:src|href)="(\/[^"]+\.(?:js|css|svg|png|webmanifest))"/g)].map((m) => m[1]))];
     await Promise.all(assets.map((a) => cache.add(a).catch(() => undefined)));
     await self.skipWaiting();
   })());

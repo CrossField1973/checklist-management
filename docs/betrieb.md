@@ -68,7 +68,7 @@ Passwörter müssen mindestens 12 Zeichen lang sein und dürfen nicht trivial, h
 
 ## Offline-Betrieb (PWA)
 
-Installierbarkeit und Offline-Betrieb benötigen **HTTPS** (Ausnahme: `localhost`), denn Browser erlauben Service Worker nur über sichere Verbindungen. Der Server liefert `sw.js` und das Manifest ohne Zwischenspeicher aus; nach einem Update lädt der Browser die neue Version beim nächsten Besuch. Es werden keine Daten serverseitig für Offline-Nutzer vorgehalten – die lokalen Kopien entstehen im Browser des jeweiligen Nutzers.
+Installierbarkeit und Offline-Betrieb benötigen **HTTPS** (Ausnahme: `localhost`), denn Browser erlauben Service Worker nur über sichere Verbindungen. Der Server liefert `sw.js` und das Manifest ohne Zwischenspeicher aus; nach einem Update lädt der Browser die neue Version beim nächsten Besuch. Es werden keine Daten serverseitig für Offline-Nutzer vorgehalten – die lokalen Kopien entstehen im Browser des jeweiligen Nutzers. Damit Android eine echte App (WebAPK, ohne Chrome-Abzeichen am Symbol) statt einer Verknüpfung anlegt, braucht es ein gültiges Zertifikat (z. B. Let's Encrypt, nicht selbst signiert) und Google-Play-Dienste auf dem Gerät. Symbole: `web/public/icon-*.png` (aus `favicon.svg` erzeugt; `icon-maskable-*` mit Sicherheitsrand für Android).
 
 ## HTTPS mit Caddy (Beispiel)
 
