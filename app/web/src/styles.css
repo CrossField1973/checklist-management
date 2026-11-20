@@ -97,11 +97,30 @@ h1, h2, h3 { line-height: 1.25; }
 .skip-link:focus { left: 8px; }
 
 @layer components {
-  .row-actions { opacity: 0; transition: opacity .12s; }
   .tree-line { position: absolute; width: 2px; border-radius: 1px; background: color-mix(in srgb, var(--muted) 45%, transparent); pointer-events: none; }
-  @media (pointer: coarse) { .drag-handle { min-width: 40px; min-height: 40px; font-size: 16px; } }
-  .row:hover .row-actions, .row:focus-within .row-actions { opacity: 1; }
+  /* Zeilen wie bei Todoist: kein Hintergrund beim Darüberfahren, nur Griff (links im Rand) und Aktionen (rechts) erscheinen */
+  .row-actions { opacity: 0; transition: opacity .12s; }
+  .row:hover .row-actions, .row:focus-within .row-actions, .row-actions:has([aria-expanded="true"]) { opacity: 1; }
   @media (hover: none) { .row-actions { opacity: 1; } }
+  /* Rahmenlose Symbol-Schaltfläche für Zeilen (Griff, Verschieben, ⋯) */
+  .icon-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; font: inherit; font-size: 18px; line-height: 1; }
+  .icon-btn:hover:not(:disabled), .icon-btn[aria-expanded="true"][aria-haspopup] { background: color-mix(in srgb, var(--muted) 16%, transparent); color: var(--text); }
+  .icon-btn:disabled { opacity: .3; cursor: not-allowed; }
+  .icon-btn-danger:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+  @media (pointer: coarse) { .icon-btn { width: 40px; height: 40px; font-size: 20px; } }
+  .drag-handle { position: absolute; left: -22px; top: 5px; width: 22px; cursor: grab; touch-action: none; }
+  .drop-line { position: relative; height: 2px; margin: 9px 0 9px 8px; background: var(--primary); border-radius: 1px; }
+  .drop-line::before { content: ""; position: absolute; left: -8px; top: -4px; width: 6px; height: 6px; border: 2px solid var(--primary); border-radius: 50%; background: var(--surface); }
+  .drag-preview { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 28px rgba(10, 14, 25, .22); cursor: grabbing; }
+  /* Zähler der Unterpunkte als Auf-/Zuklapp-Schalter */
+  .count-btn { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; min-height: 32px; padding: 0 8px; border: 0; border-radius: 99px; background: transparent; color: var(--muted); cursor: pointer; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .count-btn:hover { background: color-mix(in srgb, var(--muted) 16%, transparent); color: var(--text); }
+  @media (pointer: coarse) { .count-btn { min-height: 40px; padding: 0 10px; font-size: 14px; } }
+  .menu-pop { position: absolute; right: 0; top: 100%; z-index: 30; min-width: 200px; padding: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 24px rgba(10, 14, 25, .18); }
+  .menu-item { display: block; width: 100%; text-align: left; padding: 12px 14px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+  .menu-item { white-space: nowrap; }
+  .menu-item:hover:not(:disabled), .menu-item:focus-visible { background: var(--bg); }
+  .menu-item:disabled { opacity: .4; cursor: not-allowed; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
   @media (max-width: 480px) { .card { padding: 14px; } }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; min-height: 38px; }
@@ -130,11 +149,11 @@ h1, h2, h3 { line-height: 1.25; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
-/* Drucken: nur der Inhalt, ohne Navigation und Bedienelemente */
-/* Touch-Geräte: Aktionen einer Zeile erst nach Tipp auf „⋯“ zeigen, damit Listen kurz bleiben (außerhalb der Ebenen, damit es vor `.btn`/`flex` gilt) */
-.row-menu-toggle { display: none; }
-@media (hover: none) { .row-menu-toggle { display: inline-flex; } .touch-menu:not(.open) { display: none; } }
+/* Touch-Geräte wie bei Todoist: kein Griff (langer Druck auf die Zeile zieht), nur „⋯“ (außerhalb der Ebenen, damit es vor `flex` gilt) */
+.row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; } /* Ziehen an der Zeile markiert keinen Text */
+@media (hover: none) { .touch-hide, .drag-handle { display: none; } }
 
+/* Drucken: nur der Inhalt, ohne Navigation und Bedienelemente */
 @media print {
   nav, header, .no-print, .skip-link, button { display: none !important; }
   .md\:grid { display: block !important; }

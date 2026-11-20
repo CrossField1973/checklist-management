@@ -1,8 +1,8 @@
 import {
-  DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors,
+  DndContext, DragOverlay, MeasuringStrategy, closestCenter,
   type DragCancelEvent, type DragEndEvent, type DragMoveEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
@@ -11,7 +11,9 @@ import {
   descendantIds, findNode, flatten, getProjection, indentTarget, isSamePlace, moveDownTarget, moveUpTarget, outdentTarget,
   treeGuides, type FlatItem, type ItemNode, type MoveTarget, type TreeGuide,
 } from "../../lib/tree";
-import { INDENT, RowMenuToggle, TreeGuides, dragClasses, dropInfoText, lockX, rowStyle } from "../../components/tree";
+import {
+  CountToggle, DragPreview, DropLine, EditIcon, GripIcon, PlusIcon, INDENT, RowMenu, TreeGuides, dragStartFeedback, rowStyle, splitListeners, swallowNextClick, useTreeSensors, type MenuEntry,
+} from "../../components/tree";
 
 interface Actions {
   onAdd: (title: string, parentId: string | null) => Promise<void>;
@@ -49,7 +51,7 @@ function QuickAdd({ label, placeholder, onAdd, onClose, autoFocus }: { label: st
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Escape" && onClose) { e.preventDefault(); onClose(); } }}
         />
-        <button type="submit" className="btn btn-primary" disabled={busy || !value.trim()}>{t("common.add")}</button>
+        <button type="submit" className={`btn ${value.trim() ? "btn-primary" : ""}`} disabled={busy || !value.trim()}>{t("common.add")}</button>
         {onClose && <button type="button" className="btn" onClick={onClose}>{t("common.cancel")}</button>}
       </div>
     </form>
@@ -60,10 +62,6 @@ interface RowProps extends Actions {
   item: FlatItem;
   depth: number;
   guide: TreeGuide;
-  /** Beim Ziehen: Hinweis, wo der Punkt landet (nur an der gezogenen Zeile). */
-  dropInfo?: string;
-  /** Beim Ziehen: Zeile ist der künftige Überpunkt. */
-  isDropParent: boolean;
   tree: ItemNode[];
   isCollapsed: boolean;
   isDragging: boolean;
@@ -72,9 +70,8 @@ interface RowProps extends Actions {
   onToggleAdd: () => void;
 }
 
-function Row({ item, depth, guide, dropInfo, isDropParent, tree, isCollapsed, isDragging, addingHere, onToggle, onToggleAdd, onAdd, onEdit, onDelete, onMove }: RowProps) {
+function Row({ item, depth, guide, tree, isCollapsed, isDragging, addingHere, onToggle, onToggleAdd, onAdd, onEdit, onDelete, onMove }: RowProps) {
   const { t } = useTranslation();
-  const [menu, setMenu] = useState(false);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition } = useSortable({ id: item.id });
   const node = item.node;
   const hasChildren = node.children.length > 0;
@@ -82,56 +79,67 @@ function Row({ item, depth, guide, dropInfo, isDropParent, tree, isCollapsed, is
   const down = moveDownTarget(tree, node.id);
   const indent = indentTarget(tree, node.id);
   const outdent = outdentTarget(tree, node.id);
+  const split = splitListeners(listeners);
+  const title = node.title;
+  const menu: MenuEntry[] = [ // Verschieben ohne Ziehen (WCAG 2.5.7); Ein-/Ausrücken nur am Desktop, am Handy seitlich ziehen
+    ...[
+      { label: t("items.upShort"), ariaLabel: t("items.up", { title }), target: up },
+      { label: t("items.downShort"), ariaLabel: t("items.down", { title }), target: down },
+      { label: t("items.indentShort"), ariaLabel: t("items.indent", { title }), target: indent, desktopOnly: true },
+      { label: t("items.outdentShort"), ariaLabel: t("items.outdent", { title }), target: outdent, desktopOnly: true },
+    ].map(({ target, ...e }) => ({ ...e, disabled: !target, onSelect: () => { if (target) void onMove(node.id, target); } })),
+    ...(node.ref ? [] : [
+      { label: t("items.addChildShort"), ariaLabel: t("items.addChild", { title }), onSelect: onToggleAdd },
+      { label: t("common.edit"), ariaLabel: t("items.edit", { title }), onSelect: () => onEdit(node) },
+    ]),
+    { label: t("common.delete"), ariaLabel: t("items.delete", { title }), onSelect: () => onDelete(node), danger: true },
+  ];
 
-  const iconBtn = "btn btn-sm px-2";
   return (
     <>
       <li
-        ref={setNodeRef}
-        style={{ transform: CSS.Translate.toString(lockX(transform, isDragging)), transition, ...rowStyle(depth) }}
-        className={`relative py-1 ${dragClasses(isDragging, isDropParent)}`}
+        ref={setNodeRef} {...split.row}
+        style={{ transform: CSS.Translate.toString(transform), transition, ...rowStyle(depth) }}
+        className="relative"
         data-testid={`item-${node.id}`}
       >
-        {!isDragging && <TreeGuides depth={depth} {...guide} />}
-        <div className="row flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface p-2">
-          <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-2">
-            <button
-              ref={setActivatorNodeRef} type="button" {...attributes} {...listeners}
-              aria-label={t("items.dragHandle", { title: node.title })}
-              title={t("items.dragHint")}
-              className="btn btn-sm drag-handle shrink-0 cursor-grab touch-none px-2"
-            >⋮⋮</button>
-            {hasChildren ? (
-              <button type="button" className={`${iconBtn} shrink-0`} aria-expanded={!isCollapsed} aria-label={t(isCollapsed ? "items.expand" : "items.collapse", { title: node.title })} onClick={onToggle}>{isCollapsed ? "▸" : "▾"}</button>
-            ) : <span className="inline-block w-9 shrink-0" aria-hidden="true" />}
-            <div className="min-w-0 flex-1">
-              {node.ref ? (
-                <p className="m-0 font-medium hyphens-auto [overflow-wrap:anywhere]">
-                  <span className="badge mr-2">{t("items.templateBadge")}</span>
-                  {node.ref.missing ? <span className="text-danger">{node.title || t("items.missingTemplate")} – {t("items.missingTemplate")}</span> : (
-                    <>
-                      <Link className="link" to={`/templates/${node.ref.templateId}`}>{node.ref.title}</Link>
-                      {node.ref.itemCount > 0 && <span className="hint ml-2">{t("items.refCount", { count: node.ref.itemCount })}</span>}
-                    </>
+        {isDragging ? <DropLine /> : (
+          <>
+            <TreeGuides depth={depth} {...guide} />
+            <div className="row relative flex flex-wrap items-center gap-x-1 px-1 py-0.5">
+              <button
+                ref={setActivatorNodeRef} type="button" {...attributes} {...split.handle}
+                aria-label={t("items.dragHandle", { title })} title={t("items.dragHint")}
+                className="icon-btn drag-handle row-actions"
+              ><GripIcon /></button>
+              <div className="flex min-h-10 min-w-0 flex-[1_1_12rem] items-center gap-1">
+                <div className="min-w-0 flex-1 px-1 py-1">
+                  {node.ref ? (
+                    <p className="m-0 font-medium hyphens-auto [overflow-wrap:anywhere]">
+                      <span className="badge mr-2">{t("items.templateBadge")}</span>
+                      {node.ref.missing ? <span className="text-danger">{node.title || t("items.missingTemplate")} – {t("items.missingTemplate")}</span> : (
+                        <>
+                          <Link className="link" to={`/templates/${node.ref.templateId}`}>{node.ref.title}</Link>
+                          {node.ref.itemCount > 0 && <span className="hint ml-2">{t("items.refCount", { count: node.ref.itemCount })}</span>}
+                        </>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="m-0 font-medium hyphens-auto [overflow-wrap:anywhere]">{title}</p>
                   )}
-                </p>
-              ) : (
-                <p className="m-0 font-medium hyphens-auto [overflow-wrap:anywhere]">{node.title}{hasChildren && isCollapsed && <span className="badge ml-2">{t("items.hidden", { count: node.children.length })}</span>}</p>
-              )}
-              {dropInfo && <p className="m-0 mt-1 text-sm font-medium text-primary">{dropInfo}</p>}
+                </div>
+                {hasChildren && (
+                  <CountToggle count={String(node.children.length)} description={t("items.hidden", { count: node.children.length })} collapsed={isCollapsed} title={title} onToggle={onToggle} t={t} />
+                )}
+              </div>
+              <div className="ml-auto flex items-center gap-0.5">
+                {!node.ref && <button type="button" className="icon-btn row-actions touch-hide" aria-expanded={addingHere} onClick={onToggleAdd} aria-label={t("items.addChild", { title })} title={t("items.addChildShort")}><PlusIcon /></button>}
+                {!node.ref && <button type="button" className="icon-btn row-actions touch-hide" onClick={() => onEdit(node)} aria-label={t("items.edit", { title })} title={t("common.edit")}><EditIcon /></button>}
+                <RowMenu title={title} entries={menu} t={t} />
+              </div>
             </div>
-            <RowMenuToggle open={menu} title={node.title} onToggle={() => setMenu((m) => !m)} t={t} />
-          </div>
-          <div role="group" aria-label={t("items.actionsFor", { title: node.title })} className={`touch-menu ${menu ? "open" : ""} ml-auto flex flex-wrap justify-end gap-1`}>
-            <button type="button" className={iconBtn} disabled={!up} onClick={() => up && void onMove(node.id, up)} aria-label={t("items.up", { title: node.title })} title={t("items.upShort")}>↑</button>
-            <button type="button" className={iconBtn} disabled={!down} onClick={() => down && void onMove(node.id, down)} aria-label={t("items.down", { title: node.title })} title={t("items.downShort")}>↓</button>
-            <button type="button" className={iconBtn} disabled={!outdent} onClick={() => outdent && void onMove(node.id, outdent)} aria-label={t("items.outdent", { title: node.title })} title={t("items.outdentShort")}>←</button>
-            <button type="button" className={iconBtn} disabled={!indent} onClick={() => indent && void onMove(node.id, indent)} aria-label={t("items.indent", { title: node.title })} title={t("items.indentShort")}>→</button>
-            {!node.ref && <button type="button" className={iconBtn} aria-expanded={addingHere} onClick={onToggleAdd} aria-label={t("items.addChild", { title: node.title })} title={t("items.addChildShort")}>＋</button>}
-            {!node.ref && <button type="button" className={iconBtn} onClick={() => onEdit(node)} aria-label={t("items.edit", { title: node.title })} title={t("common.edit")}>✎</button>}
-            <button type="button" className={`${iconBtn} btn-danger`} onClick={() => onDelete(node)} aria-label={t("items.delete", { title: node.title })} title={t("common.delete")}>🗑</button>
-          </div>
-        </div>
+          </>
+        )}
       </li>
       {addingHere && (
         <li className="relative py-1" style={rowStyle(depth + 1)}>
@@ -145,7 +153,7 @@ function Row({ item, depth, guide, dropInfo, isDropParent, tree, isCollapsed, is
 
 /**
  * Punktebaum einer Vorlage (F-13, F-14): Ziehen mit Maus/Touch/Tastatur (dnd-kit) – horizontale Bewegung ändert die Ebene –
- * und als gleichwertige Alternative Schaltflächen für Hoch, Runter, Ein- und Ausrücken (WCAG 2.5.7).
+ * und als gleichwertige Alternative das „⋯“-Menü mit Hoch, Runter, Ein- und Ausrücken (WCAG 2.5.7).
  */
 export function ItemTree({ items, onAdd, onEdit, onDelete, onMove }: { items: ItemNode[] } & Actions) {
   const { t } = useTranslation();
@@ -155,10 +163,7 @@ export function ItemTree({ items, onAdd, onEdit, onDelete, onMove }: { items: It
   const [overId, setOverId] = useState<string | null>(null);
   const [offsetX, setOffsetX] = useState(0);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), // kurze Klicks auf den Griff starten kein Ziehen
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const sensors = useTreeSensors();
 
   const flat = useMemo(() => {
     const all = flatten(items, collapsed);
@@ -172,8 +177,7 @@ export function ItemTree({ items, onAdd, onEdit, onDelete, onMove }: { items: It
   const title = (id: unknown) => findNode(items, String(id))?.title ?? "";
   const guides = treeGuides(flat.map((i) => i.depth));
   const active = activeId ? findNode(items, activeId) : null;
-  const dropInfo = projection && active ? dropInfoText(t, projection.parentId ? title(projection.parentId) : null, descendantIds(active).length) : undefined;
-  const reset = () => { setActiveId(null); setOverId(null); setOffsetX(0); };
+  const reset = () => { setActiveId(null); setOverId(null); setOffsetX(0); swallowNextClick(); };
 
   function dragEnd(e: DragEndEvent) {
     const proj = e.over && activeId ? getProjection(flatten(items, collapsed), activeId, String(e.over.id), offsetX, INDENT, collapsed) : null;
@@ -191,7 +195,8 @@ export function ItemTree({ items, onAdd, onEdit, onDelete, onMove }: { items: It
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        onDragStart={(e: DragStartEvent) => { setActiveId(String(e.active.id)); setOverId(String(e.active.id)); }}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        onDragStart={(e: DragStartEvent) => { setActiveId(String(e.active.id)); setOverId(String(e.active.id)); dragStartFeedback(e.activatorEvent); }}
         onDragMove={(e: DragMoveEvent) => setOffsetX(e.delta.x)}
         onDragOver={(e: DragOverEvent) => setOverId(e.over ? String(e.over.id) : null)}
         onDragEnd={dragEnd}
@@ -214,8 +219,6 @@ export function ItemTree({ items, onAdd, onEdit, onDelete, onMove }: { items: It
                 item={item}
                 depth={item.id === activeId && projection ? projection.depth : item.depth}
                 guide={guides[i]!}
-                dropInfo={item.id === activeId ? dropInfo : undefined}
-                isDropParent={!!projection?.parentId && projection.parentId === item.id}
                 tree={items}
                 isCollapsed={collapsed.has(item.id)}
                 isDragging={item.id === activeId}
@@ -230,6 +233,9 @@ export function ItemTree({ items, onAdd, onEdit, onDelete, onMove }: { items: It
             ))}
           </ul>
         </SortableContext>
+        <DragOverlay dropAnimation={null}>
+          {active && <DragPreview title={active.ref?.title ?? active.title} childCount={descendantIds(active).length} />}
+        </DragOverlay>
       </DndContext>
 
       {items.length === 0 && <p className="hint">{t("items.empty")}</p>}

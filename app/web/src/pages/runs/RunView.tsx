@@ -137,7 +137,7 @@ export default function RunView() {
             <Button onClick={() => setDlg("templates")}>＋ {t("runs.addTemplates")}</Button>
             <Button onClick={() => setDlg("share")}>{t("runs.share")}</Button>
             <Button onClick={() => setDlg("export")}>{t("editor.export")} <DownloadIcon /></Button>
-            <Button variant="primary" onClick={() => setDlg("finish")}>{t("runs.finish")}</Button>
+            <Button variant="primary" className="ml-auto" onClick={() => setDlg("finish")}>{t("runs.finish")}</Button>
           </>
         ) : (
           <>

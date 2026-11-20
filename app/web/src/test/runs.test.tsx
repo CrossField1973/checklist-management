@@ -132,7 +132,8 @@ describe("Checkliste bearbeiten (F-23 bis F-26)", () => {
     const api = runsApi();
     api.on("DELETE /run-items/b", () => ({ body: { run: detail() } }));
     const { ui } = renderApp("/runs/r1");
-    await ui.click(await screen.findByRole("button", { name: "Route prüfen löschen" }));
+    await ui.click(await screen.findByRole("button", { name: "Aktionen für Route prüfen anzeigen" }));
+    await ui.click(screen.getByRole("menuitem", { name: "Route prüfen löschen" }));
     expect(api.callsTo("DELETE /run-items/b")).toHaveLength(0);
     await ui.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Löschen" }));
     await waitFor(() => expect(api.callsTo("DELETE /run-items/b")).toHaveLength(1));
@@ -399,7 +400,7 @@ describe("Reihenfolge ändern, Abhaken und Fortschritt", () => {
     renderApp("/runs/r1");
     await screen.findByRole("checkbox", { name: "Route prüfen" });
     expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /nach oben/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Aktionen für/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /verschieben/ })).not.toBeInTheDocument();
   });
 
@@ -410,11 +411,14 @@ describe("Reihenfolge ändern, Abhaken und Fortschritt", () => {
     const { ui } = renderApp("/runs/r1");
     await screen.findByRole("checkbox", { name: "Route prüfen" });
     expect(screen.getByRole("button", { name: /Route prüfen verschieben/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Rucksack nach oben" })).toBeDisabled();
-    await ui.click(screen.getByRole("button", { name: "Route prüfen nach oben" }));
+    await ui.click(screen.getByRole("button", { name: "Aktionen für Rucksack anzeigen" }));
+    expect(screen.getByRole("menuitem", { name: "Rucksack nach oben" })).toBeDisabled();
+    await ui.click(screen.getByRole("button", { name: "Aktionen für Route prüfen anzeigen" }));
+    await ui.click(screen.getByRole("menuitem", { name: "Route prüfen nach oben" }));
     await waitFor(() => expect(api.callsTo("POST /run-items/b/move")).toHaveLength(1));
     expect(api.callsTo("POST /run-items/b/move")[0]!.body).toEqual({ sectionId: "s1", parentItemId: null, position: 0 });
-    await ui.click(screen.getByRole("button", { name: "Brot eine Ebene nach links (ausrücken)" }));
+    await ui.click(screen.getByRole("button", { name: "Aktionen für Brot anzeigen" }));
+    await ui.click(screen.getByRole("menuitem", { name: "Brot eine Ebene nach links (ausrücken)" }));
     await waitFor(() => expect(api.callsTo("POST /run-items/d/move")).toHaveLength(1));
     expect(api.callsTo("POST /run-items/d/move")[0]!.body).toEqual({ sectionId: "s1", parentItemId: null, position: 3 });
   });
@@ -428,6 +432,17 @@ describe("Reihenfolge ändern, Abhaken und Fortschritt", () => {
     expect(screen.queryByRole("button", { name: /Unterpunkte von (Rucksack|Route)/ })).not.toBeInTheDocument(); // nur bei Punkten mit Unterpunkten
     await ui.click(screen.getByRole("button", { name: "Unterpunkte von Proviant einblenden" }));
     expect(screen.getByRole("checkbox", { name: "Brot" })).toBeInTheDocument();
+  });
+
+  it("„⋯“ öffnet ein Menü mit den Aktionen der Zeile (Handy)", async () => {
+    runsApi();
+    const { ui } = renderApp("/runs/r1");
+    await screen.findByRole("checkbox", { name: "Route prüfen" });
+    await ui.click(screen.getByRole("button", { name: "Aktionen für Route prüfen anzeigen" }));
+    const menu = screen.getByRole("menu", { name: "Aktionen für Route prüfen" });
+    await ui.click(within(menu).getByRole("menuitem", { name: "Route prüfen löschen" }));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Punkt löschen?" })).toBeInTheDocument();
   });
 
   it("Ziehen ist bei ausgeblendeten Erledigten abgeschaltet (Position wäre unklar)", async () => {
@@ -446,7 +461,7 @@ describe("Reihenfolge ändern, Abhaken und Fortschritt", () => {
     await ui.click(await screen.findByRole("checkbox", { name: "Brot" }));
     // einziger Unterpunkt erledigt → „Proviant“ gilt sofort als erledigt, Zähler am Überpunkt und gesamt stimmen
     expect(screen.getByRole("checkbox", { name: "Proviant" })).toBeChecked();
-    expect(screen.getByLabelText("1 von 1 Unterpunkten erledigt")).toBeInTheDocument();
+    expect(screen.getByText("1 von 1 Unterpunkten erledigt")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Fortschritt von Ausflug Füssen" })).toHaveAttribute("aria-valuenow", "2");
     await ui.click(screen.getByRole("checkbox", { name: "Proviant" })); // Überpunkt zurücknehmen → auch „Brot“
     expect(screen.getByRole("checkbox", { name: "Brot" })).not.toBeChecked();

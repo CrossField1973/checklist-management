@@ -304,7 +304,8 @@ describe("Vorlagen-Editor: Punkte werden lokal geändert und mit Speichern über
 
   it("löscht Punkte nach Rückfrage und nennt die Zahl der betroffenen Unterpunkte", async () => {
     const { ui } = await openEditor();
-    await ui.click(screen.getByRole("button", { name: "Rucksack löschen" }));
+    await ui.click(screen.getByRole("button", { name: "Aktionen für Rucksack anzeigen" }));
+    await ui.click(screen.getByRole("menuitem", { name: "Rucksack löschen" }));
     const dialog = await screen.findByRole("dialog", { name: "Punkt löschen?" });
     expect(dialog).toHaveTextContent("samt 2 Unterpunkten");
     expect(screen.getByText("Rucksack")).toBeInTheDocument(); // noch nicht gelöscht
@@ -327,38 +328,44 @@ describe("Vorlagen-Editor: Punkte werden lokal geändert und mit Speichern über
 });
 
 describe("Vorlagen-Editor: Verschieben ohne Ziehen (WCAG 2.5.7)", () => {
-  const moveBtn = (name: string) => screen.getByRole("button", { name });
+  /** Öffnet das „⋯“-Menü des Punkts und liefert den Eintrag. */
+  const moveBtn = async (ui: { click: (el: Element) => Promise<void> }, title: string, name: string) => {
+    await ui.click(screen.getByRole("button", { name: `Aktionen für ${title} anzeigen` }));
+    return screen.getByRole("menuitem", { name });
+  };
   const titlesInOrder = () => within(screen.getByRole("list", { name: "Punkte der Vorlage" })).getAllByRole("listitem")
     .map((li) => li.textContent?.match(/Rucksack|Sonnencreme|Regenjacke|Route prüfen/)?.[0]).filter(Boolean);
 
   it("deaktiviert unmögliche Schritte (erster Punkt nicht nach oben/einrücken, oberste Ebene nicht ausrücken)", async () => {
-    await openEditor();
-    expect(moveBtn("Rucksack nach oben")).toBeDisabled();
-    expect(moveBtn("Rucksack eine Ebene nach rechts (einrücken)")).toBeDisabled();
-    expect(moveBtn("Rucksack eine Ebene nach links (ausrücken)")).toBeDisabled();
-    expect(moveBtn("Route prüfen nach unten")).toBeDisabled();
-    expect(moveBtn("Rucksack nach unten")).toBeEnabled();
-    expect(moveBtn("Sonnencreme eine Ebene nach links (ausrücken)")).toBeEnabled();
+    const { ui } = await openEditor();
+    expect(await moveBtn(ui, "Rucksack", "Rucksack nach oben")).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: "Rucksack eine Ebene nach rechts (einrücken)" })).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: "Rucksack eine Ebene nach links (ausrücken)" })).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: "Rucksack nach unten" })).toBeEnabled();
+    expect(await moveBtn(ui, "Route prüfen", "Route prüfen nach unten")).toBeDisabled();
+    expect(await moveBtn(ui, "Sonnencreme", "Sonnencreme eine Ebene nach links (ausrücken)")).toBeEnabled();
   });
 
   it("verschiebt mit ↓ und ← sofort lokal, ohne Serveraufruf", async () => {
     const { api, ui } = await openEditor();
-    await ui.click(moveBtn("Rucksack nach unten"));
+    await ui.click(await moveBtn(ui, "Rucksack", "Rucksack nach unten"));
     expect(titlesInOrder()).toEqual(["Route prüfen", "Rucksack", "Sonnencreme", "Regenjacke"]);
-    await ui.click(moveBtn("Sonnencreme eine Ebene nach links (ausrücken)"));
+    await ui.click(await moveBtn(ui, "Sonnencreme", "Sonnencreme eine Ebene nach links (ausrücken)"));
     expect(titlesInOrder()).toEqual(["Route prüfen", "Rucksack", "Regenjacke", "Sonnencreme"]);
-    await ui.click(moveBtn("Sonnencreme eine Ebene nach rechts (einrücken)"));
+    await ui.click(await moveBtn(ui, "Sonnencreme", "Sonnencreme eine Ebene nach rechts (einrücken)"));
     expect(titlesInOrder()).toEqual(["Route prüfen", "Rucksack", "Regenjacke", "Sonnencreme"]);
     expect(api.callsTo("POST /template-items/i1/move")).toHaveLength(0);
     expect(screen.getByText("Ungespeicherte Änderungen")).toBeInTheDocument();
   });
 
   it("bietet an jedem Punkt Griff, Aktionen und sprechende Namen", async () => {
-    await openEditor();
+    const { ui } = await openEditor();
     const rowEl = within(screen.getByTestId("item-i2"));
     expect(rowEl.getByRole("button", { name: /Route prüfen verschieben/ })).toBeInTheDocument();
-    expect(rowEl.getByRole("group", { name: "Aktionen für Route prüfen" })).toBeInTheDocument();
-    for (const name of ["Route prüfen nach oben", "Route prüfen nach unten", "Route prüfen bearbeiten", "Route prüfen löschen"]) expect(rowEl.getByRole("button", { name })).toBeInTheDocument();
+    expect(rowEl.getByRole("button", { name: "Route prüfen bearbeiten" })).toBeInTheDocument();
+    await ui.click(rowEl.getByRole("button", { name: "Aktionen für Route prüfen anzeigen" }));
+    const menu = rowEl.getByRole("menu", { name: "Aktionen für Route prüfen" });
+    for (const name of ["Route prüfen nach oben", "Route prüfen nach unten", "Route prüfen bearbeiten", "Route prüfen löschen"]) expect(within(menu).getByRole("menuitem", { name })).toBeInTheDocument();
   });
 });
 
@@ -516,7 +523,7 @@ describe("Vorlage in Vorlage (Verweise)", () => {
     expect(li).toHaveTextContent("3 Punkte");
     expect(within(li).queryByRole("button", { name: /Unterpunkt zu Hygiene/ })).not.toBeInTheDocument();
     expect(within(li).queryByRole("button", { name: /Hygiene bearbeiten/ })).not.toBeInTheDocument();
-    expect(within(li).getByRole("button", { name: /Hygiene löschen/ })).toBeInTheDocument();
+    expect(within(li).getByRole("button", { name: "Aktionen für Hygiene anzeigen" })).toBeInTheDocument();
   });
 
   it("fügt eine Vorlage ein und speichert sie als Verweis", async () => {
