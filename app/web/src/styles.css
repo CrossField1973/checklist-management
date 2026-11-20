@@ -98,9 +98,12 @@ h1, h2, h3 { line-height: 1.25; }
 
 @layer components {
   .row-actions { opacity: 0; transition: opacity .12s; }
+  .tree-line { position: absolute; width: 2px; border-radius: 1px; background: color-mix(in srgb, var(--muted) 45%, transparent); pointer-events: none; }
+  @media (pointer: coarse) { .drag-handle { min-width: 40px; min-height: 40px; font-size: 16px; } }
   .row:hover .row-actions, .row:focus-within .row-actions { opacity: 1; }
   @media (hover: none) { .row-actions { opacity: 1; } }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  @media (max-width: 480px) { .card { padding: 14px; } }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit; min-height: 38px; }
   .btn:hover:not(:disabled) { background: var(--bg); }
   .btn:disabled { opacity: .55; cursor: not-allowed; }
@@ -128,6 +131,10 @@ h1, h2, h3 { line-height: 1.25; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 /* Drucken: nur der Inhalt, ohne Navigation und Bedienelemente */
+/* Touch-Geräte: Aktionen einer Zeile erst nach Tipp auf „⋯“ zeigen, damit Listen kurz bleiben (außerhalb der Ebenen, damit es vor `.btn`/`flex` gilt) */
+.row-menu-toggle { display: none; }
+@media (hover: none) { .row-menu-toggle { display: inline-flex; } .touch-menu:not(.open) { display: none; } }
+
 @media print {
   nav, header, .no-print, .skip-link, button { display: none !important; }
   .md\:grid { display: block !important; }

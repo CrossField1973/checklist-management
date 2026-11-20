@@ -31,9 +31,10 @@ Eine **Vorlage** ist eine wiederverwendbare Liste von Punkten (z. B. „Tagesaus
 - **Punkte hinzufügen:** In das Feld unter der Liste tippen und Enter drücken – das Feld bleibt aktiv, sodass du viele Punkte hintereinander eingeben kannst. Mit **＋** an einem Punkt legst du einen **Unterpunkt** an (beliebig tief).
 - **Punkt bearbeiten** (Titel) und **löschen** (samt Unterpunkten, mit Rückfrage). **▾/▸** blendet Unterpunkte aus oder ein.
 - **Umsortieren und verschachteln:**
-  - **Mit der Maus oder per Touch:** Griff **⋮⋮** ziehen. Beim Ziehen nach rechts oder links ändert sich die Ebene (Einrücken/Ausrücken); Unterpunkte wandern mit.
+  - **Mit der Maus oder per Touch:** Griff **⋮⋮** ziehen. Beim Ziehen nach rechts oder links ändert sich die Ebene (Einrücken/Ausrücken); Unterpunkte wandern mit. Die gezogene Zeile zeigt, wo sie landet („Wird Unterpunkt von …“), der künftige Überpunkt ist gestrichelt umrandet.
   - **Mit der Tastatur:** Fokus auf den Griff, **Leertaste** zum Aufnehmen, **Pfeil auf/ab** zum Bewegen, **Leertaste** zum Ablegen, **Esc** zum Abbrechen. Screenreader kündigen jeden Schritt an.
   - **Ohne Ziehen:** an jedem Punkt die Schaltflächen **↑ ↓** (nach oben/unten unter Geschwistern) und **← →** (ausrücken/einrücken: wird letzter Unterpunkt des vorherigen Punkts bzw. rückt hinter den bisherigen Elternpunkt).
+- **Darstellung:** Linien links verbinden Unterpunkte mit ihrem Überpunkt. Auf Touch-Geräten (Handy, Tablet) stecken die Schaltflächen einer Zeile hinter **⋯**.
 - **Vorlage in Vorlage:** *Vorlage einfügen* unter den Punkten wählt eine oder mehrere andere Vorlagen. Sie erscheinen als Eintrag mit Link (ihre Punkte stehen dort als Unterpunkte), bleiben mit der Vorlage **verbunden** (Änderungen an ihr gelten überall, wo sie eingefügt ist) und lassen sich nur als Ganzes löschen. Eine Vorlage kann sich nicht selbst enthalten, auch nicht über andere. Beim Starten einer Checkliste wird der Verweis aufgelöst: die eingefügte Vorlage wird ein Überpunkt mit ihren Punkten. **Löschen:** Wird die Vorlage in anderen Vorlagen verwendet, fragt ein Hinweis „wird in x Vorlagen verwendet, die Punkte verschwinden dort – sicher?“. Aus dem Papierkorb wiederhergestellt, ist der Verweis wieder da. Export und Duplikat: Der Export kopiert die eingefügten Punkte; das Duplikat behält den Verweis.
 - **Exportieren** (Button neben Duplizieren und Löschen, öffnet eine Auswahl): bei Vorlagen JSON (vollständig, wieder importierbar) oder CSV (Semikolon, öffnet direkt in Excel).
 - **Checkliste exportieren** (Button *Exportieren* über der Checkliste, auch im Archiv): JSON (vollständig, wieder importierbar), CSV, Markdown oder *Drucken* (Druckdialog des Browsers, auch für PDF; Navigation und Schaltflächen werden nicht mitgedruckt).
@@ -56,7 +57,7 @@ Eine **Checkliste** ist eine konkrete Abarbeitung, z. B. „Ausflug Füssen“. 
 
 ### Reihenfolge ändern
 - **Per Pfeil:** an jeder Zeile ↑ ↓ (unter Geschwistern) und ← → (ausrücken/einrücken).
-- **Ziehen:** Am Griff ⋮⋮ ziehen und mit der horizontalen Bewegung die **Ebene** ändern (nach rechts = Unterpunkt des Punkts darüber, nach links = ausrücken). Unterpunkte wandern mit. Per Tastatur: Fokus auf den Griff, Leertaste, Pfeiltasten, Leertaste. Bei eingeschaltetem *Erledigte ausblenden* (Profil → Darstellung) ist das Ziehen abgeschaltet.
+- **Ziehen:** Am Griff ⋮⋮ ziehen und mit der horizontalen Bewegung die **Ebene** ändern (nach rechts = Unterpunkt des Punkts darüber, nach links = ausrücken). Unterpunkte wandern mit; die Zeile zeigt, wo sie landet, und der künftige Überpunkt ist gestrichelt umrandet. Per Tastatur: Fokus auf den Griff, Leertaste, Pfeiltasten, Leertaste. Auf Touch-Geräten stecken die Schaltflächen einer Zeile hinter **⋯**; Linien links verbinden Unterpunkte mit ihrem Überpunkt. Bei eingeschaltetem *Erledigte ausblenden* (Profil → Darstellung) ist das Ziehen abgeschaltet.
 
 ### Tastenkürzel
 

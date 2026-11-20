@@ -9,10 +9,9 @@ import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
   descendantIds, findNode, flatten, getProjection, indentTarget, isSamePlace, moveDownTarget, moveUpTarget, outdentTarget,
-  type FlatItem, type ItemNode, type MoveTarget,
+  treeGuides, type FlatItem, type ItemNode, type MoveTarget, type TreeGuide,
 } from "../../lib/tree";
-
-const INDENT = 28; // Pixel je Ebene (Einrückung und Maß für die horizontale Ziehbewegung)
+import { INDENT, RowMenuToggle, TreeGuides, dragClasses, dropInfoText, lockX, rowStyle } from "../../components/tree";
 
 interface Actions {
   onAdd: (title: string, parentId: string | null) => Promise<void>;
@@ -60,6 +59,11 @@ function QuickAdd({ label, placeholder, onAdd, onClose, autoFocus }: { label: st
 interface RowProps extends Actions {
   item: FlatItem;
   depth: number;
+  guide: TreeGuide;
+  /** Beim Ziehen: Hinweis, wo der Punkt landet (nur an der gezogenen Zeile). */
+  dropInfo?: string;
+  /** Beim Ziehen: Zeile ist der künftige Überpunkt. */
+  isDropParent: boolean;
   tree: ItemNode[];
   isCollapsed: boolean;
   isDragging: boolean;
@@ -68,8 +72,9 @@ interface RowProps extends Actions {
   onToggleAdd: () => void;
 }
 
-function Row({ item, depth, tree, isCollapsed, isDragging, addingHere, onToggle, onToggleAdd, onAdd, onEdit, onDelete, onMove }: RowProps) {
+function Row({ item, depth, guide, dropInfo, isDropParent, tree, isCollapsed, isDragging, addingHere, onToggle, onToggleAdd, onAdd, onEdit, onDelete, onMove }: RowProps) {
   const { t } = useTranslation();
+  const [menu, setMenu] = useState(false);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition } = useSortable({ id: item.id });
   const node = item.node;
   const hasChildren = node.children.length > 0;
@@ -83,36 +88,41 @@ function Row({ item, depth, tree, isCollapsed, isDragging, addingHere, onToggle,
     <>
       <li
         ref={setNodeRef}
-        style={{ transform: CSS.Translate.toString(transform), transition, marginLeft: depth * INDENT }}
-        className={`rounded-lg border border-border bg-surface ${isDragging ? "opacity-60 ring-2 ring-primary" : ""}`}
+        style={{ transform: CSS.Translate.toString(lockX(transform, isDragging)), transition, ...rowStyle(depth) }}
+        className={`relative py-1 ${dragClasses(isDragging, isDropParent)}`}
         data-testid={`item-${node.id}`}
       >
-        <div className="flex flex-wrap items-center gap-2 p-2">
-          <button
-            ref={setActivatorNodeRef} type="button" {...attributes} {...listeners}
-            aria-label={t("items.dragHandle", { title: node.title })}
-            title={t("items.dragHint")}
-            className="btn btn-sm cursor-grab touch-none px-2"
-          >⋮⋮</button>
-          {hasChildren ? (
-            <button type="button" className={iconBtn} aria-expanded={!isCollapsed} aria-label={t(isCollapsed ? "items.expand" : "items.collapse", { title: node.title })} onClick={onToggle}>{isCollapsed ? "▸" : "▾"}</button>
-          ) : <span className="inline-block w-9" aria-hidden="true" />}
-          <div className="min-w-0 flex-1">
-            {node.ref ? (
-              <p className="m-0 break-words font-medium">
-                <span className="badge mr-2">{t("items.templateBadge")}</span>
-                {node.ref.missing ? <span className="text-danger">{node.title || t("items.missingTemplate")} – {t("items.missingTemplate")}</span> : (
-                  <>
-                    <Link className="link" to={`/templates/${node.ref.templateId}`}>{node.ref.title}</Link>
-                    {node.ref.itemCount > 0 && <span className="hint ml-2">{t("items.refCount", { count: node.ref.itemCount })}</span>}
-                  </>
-                )}
-              </p>
-            ) : (
-              <p className="m-0 break-words font-medium">{node.title}{hasChildren && isCollapsed && <span className="badge ml-2">{t("items.hidden", { count: node.children.length })}</span>}</p>
-            )}
+        {!isDragging && <TreeGuides depth={depth} {...guide} />}
+        <div className="row flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface p-2">
+          <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-2">
+            <button
+              ref={setActivatorNodeRef} type="button" {...attributes} {...listeners}
+              aria-label={t("items.dragHandle", { title: node.title })}
+              title={t("items.dragHint")}
+              className="btn btn-sm drag-handle shrink-0 cursor-grab touch-none px-2"
+            >⋮⋮</button>
+            {hasChildren ? (
+              <button type="button" className={`${iconBtn} shrink-0`} aria-expanded={!isCollapsed} aria-label={t(isCollapsed ? "items.expand" : "items.collapse", { title: node.title })} onClick={onToggle}>{isCollapsed ? "▸" : "▾"}</button>
+            ) : <span className="inline-block w-9 shrink-0" aria-hidden="true" />}
+            <div className="min-w-0 flex-1">
+              {node.ref ? (
+                <p className="m-0 font-medium hyphens-auto [overflow-wrap:anywhere]">
+                  <span className="badge mr-2">{t("items.templateBadge")}</span>
+                  {node.ref.missing ? <span className="text-danger">{node.title || t("items.missingTemplate")} – {t("items.missingTemplate")}</span> : (
+                    <>
+                      <Link className="link" to={`/templates/${node.ref.templateId}`}>{node.ref.title}</Link>
+                      {node.ref.itemCount > 0 && <span className="hint ml-2">{t("items.refCount", { count: node.ref.itemCount })}</span>}
+                    </>
+                  )}
+                </p>
+              ) : (
+                <p className="m-0 font-medium hyphens-auto [overflow-wrap:anywhere]">{node.title}{hasChildren && isCollapsed && <span className="badge ml-2">{t("items.hidden", { count: node.children.length })}</span>}</p>
+              )}
+              {dropInfo && <p className="m-0 mt-1 text-sm font-medium text-primary">{dropInfo}</p>}
+            </div>
+            <RowMenuToggle open={menu} title={node.title} onToggle={() => setMenu((m) => !m)} t={t} />
           </div>
-          <div role="group" aria-label={t("items.actionsFor", { title: node.title })} className="flex flex-wrap gap-1">
+          <div role="group" aria-label={t("items.actionsFor", { title: node.title })} className={`touch-menu ${menu ? "open" : ""} ml-auto flex flex-wrap justify-end gap-1`}>
             <button type="button" className={iconBtn} disabled={!up} onClick={() => up && void onMove(node.id, up)} aria-label={t("items.up", { title: node.title })} title={t("items.upShort")}>↑</button>
             <button type="button" className={iconBtn} disabled={!down} onClick={() => down && void onMove(node.id, down)} aria-label={t("items.down", { title: node.title })} title={t("items.downShort")}>↓</button>
             <button type="button" className={iconBtn} disabled={!outdent} onClick={() => outdent && void onMove(node.id, outdent)} aria-label={t("items.outdent", { title: node.title })} title={t("items.outdentShort")}>←</button>
@@ -124,7 +134,8 @@ function Row({ item, depth, tree, isCollapsed, isDragging, addingHere, onToggle,
         </div>
       </li>
       {addingHere && (
-        <li style={{ marginLeft: (depth + 1) * INDENT }}>
+        <li className="relative py-1" style={rowStyle(depth + 1)}>
+          <TreeGuides depth={depth + 1} guides={depth > 0 ? [...guide.guides, !guide.last] : []} last={isCollapsed || !hasChildren} />
           <QuickAdd label={t("items.addChildLabel", { title: node.title })} placeholder={t("items.addChildPlaceholder")} autoFocus onClose={onToggleAdd} onAdd={(title) => onAdd(title, node.id)} />
         </li>
       )}
@@ -159,6 +170,9 @@ export function ItemTree({ items, onAdd, onEdit, onDelete, onMove }: { items: It
 
   const projection = activeId && overId ? getProjection(flatten(items, collapsed), activeId, overId, offsetX, INDENT, collapsed) : null;
   const title = (id: unknown) => findNode(items, String(id))?.title ?? "";
+  const guides = treeGuides(flat.map((i) => i.depth));
+  const active = activeId ? findNode(items, activeId) : null;
+  const dropInfo = projection && active ? dropInfoText(t, projection.parentId ? title(projection.parentId) : null, descendantIds(active).length) : undefined;
   const reset = () => { setActiveId(null); setOverId(null); setOffsetX(0); };
 
   function dragEnd(e: DragEndEvent) {
@@ -193,12 +207,15 @@ export function ItemTree({ items, onAdd, onEdit, onDelete, onMove }: { items: It
         }}
       >
         <SortableContext items={flat.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-          <ul className="m-0 grid list-none gap-2 p-0" aria-label={t("items.listLabel")}>
-            {flat.map((item) => (
+          <ul className="m-0 list-none p-0" aria-label={t("items.listLabel")}>
+            {flat.map((item, i) => (
               <Row
                 key={item.id}
                 item={item}
                 depth={item.id === activeId && projection ? projection.depth : item.depth}
+                guide={guides[i]!}
+                dropInfo={item.id === activeId ? dropInfo : undefined}
+                isDropParent={!!projection?.parentId && projection.parentId === item.id}
                 tree={items}
                 isCollapsed={collapsed.has(item.id)}
                 isDragging={item.id === activeId}

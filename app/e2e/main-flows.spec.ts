@@ -1,6 +1,12 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const PASSWORD = "Kaffeetasse-Wolke-42";
+/** Punkt einer Checkliste abhaken: Die Anzeige folgt dem Zwischenspeicher einen Takt später, daher nicht `check()` (prüft sofort). */
+async function tick(box: Locator) {
+  await box.click();
+  await expect(box).toBeChecked();
+}
+
 const unique = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
 async function register(page: Page, name = "Anna Muster") {
@@ -44,7 +50,7 @@ test("Vorlage → Checkliste → abhaken → archivieren → wiederherstellen �
   await expect(page.getByRole("heading", { name: "Ausflug Füssen", level: 1 })).toBeVisible();
 
   // Abhaken wird gespeichert (nach Neuladen noch da)
-  await page.getByRole("checkbox", { name: "Rucksack packen" }).check();
+  await tick(page.getByRole("checkbox", { name: "Rucksack packen" }));
   await expect(page.getByText("1/2").first()).toBeVisible();
   await page.reload();
   await expect(page.getByRole("checkbox", { name: "Rucksack packen" })).toBeChecked();
@@ -113,7 +119,7 @@ test("Teilen: Link mit Passwort – Empfänger ohne Konto bearbeitet, Besitzer s
   await guest.getByLabel("Passwort").fill("geheim-geheim-1");
   await guest.getByRole("button", { name: "Öffnen" }).click();
   await expect(guest.getByRole("heading", { name: "Thermenbesuch", level: 1 })).toBeVisible();
-  await guest.getByRole("checkbox", { name: "Handtuch" }).check();
+  await tick(guest.getByRole("checkbox", { name: "Handtuch" }));
   await expect(guest.getByText("1/2").first()).toBeVisible();
 
   // Besitzer sieht die Änderung
@@ -121,7 +127,7 @@ test("Teilen: Link mit Passwort – Empfänger ohne Konto bearbeitet, Besitzer s
   await expect(page.getByRole("checkbox", { name: "Handtuch" })).toBeChecked();
 
   // Empfänger sieht Änderungen des Besitzers von selbst (Abfrage alle paar Sekunden)
-  await page.getByRole("checkbox", { name: "Badekappe" }).check();
+  await tick(page.getByRole("checkbox", { name: "Badekappe" }));
   await expect(guest.getByRole("checkbox", { name: "Badekappe" })).toBeChecked({ timeout: 15_000 });
 
   // Teilen beenden → Link ist unwirksam
@@ -181,7 +187,7 @@ test("Offline (PWA): App startet ohne Verbindung, Abhaken und Hinzufügen werden
   await expect(page.getByRole("checkbox", { name: "Wasser" })).toBeVisible();
   await expect(page.getByText(/Du bist offline/)).toBeVisible();
 
-  await page.getByRole("checkbox", { name: "Wasser" }).check();
+  await tick(page.getByRole("checkbox", { name: "Wasser" }));
   await page.getByLabel("Neuen Punkt hinzufügen").fill("Sonnencreme");
   await page.getByLabel("Neuen Punkt hinzufügen").press("Enter");
   await expect(page.getByText("wartet auf Übertragung")).toBeVisible();

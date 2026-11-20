@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   countNodes, descendantIds, findNode, findParentId, flatten, getProjection, indentTarget, isSamePlace, moveDownTarget, moveInTree,
-  moveUpTarget, outdentTarget, getBoardProjection, moveBetweenSections, withProgress, applyCheck, toInput, type BoardRow, type ItemNode,
+  moveUpTarget, outdentTarget, getBoardProjection, moveBetweenSections, withProgress, applyCheck, toInput, treeGuides, type BoardRow, type ItemNode,
 } from "./tree";
 
 const n = (id: string, children: ItemNode[] = [], position = 0): ItemNode => ({ id, title: id, position, children });
@@ -252,5 +252,20 @@ describe("Verweise auf Vorlagen im Baum", () => {
     expect(toInput([plain("a"), ref("r")])).toEqual([{ title: "a" }, { refTemplateId: "t9" }]);
     expect(indentTarget([ref("r"), plain("b")], "b")).toBeNull(); // nicht unter einen Verweis einrücken
     expect(indentTarget([plain("a"), plain("b")], "b")).not.toBeNull();
+  });
+});
+
+describe("treeGuides", () => {
+  it("setzt Abschluss und durchlaufende Linien je Ebene", () => {
+    // A ├ B │ └ C ├ D └ E   F
+    expect(treeGuides([0, 1, 2, 1, 1, 0])).toEqual([
+      { last: false, guides: [] },
+      { last: false, guides: [] },
+      { last: true, guides: [true] },
+      { last: false, guides: [] },
+      { last: true, guides: [] },
+      { last: true, guides: [] },
+    ]);
+    expect(treeGuides([0, 1, 2, 0])[2]).toEqual({ last: true, guides: [false] });
   });
 });

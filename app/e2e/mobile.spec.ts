@@ -33,12 +33,18 @@ test("Handy: Aufgabentitel werden nicht von den Schaltflächen überlagert", asy
   for (const item of items) {
     await add.fill(item);
     await add.press("Enter");
-    await expect(page.getByRole("group", { name: `Aktionen für ${item}` })).toBeVisible();
+    await expect(page.getByText(item, { exact: true })).toBeVisible();
   }
 
   for (const item of items) {
     const title = page.getByText(item, { exact: true });
     const actions = page.getByRole("group", { name: `Aktionen für ${item}` });
+    // Am Handy sind die Aktionen hinter „⋯“ eingeklappt
+    await expect(actions).toBeHidden();
+    const toggle = page.getByRole("button", { name: `Aktionen für ${item} anzeigen` });
+    expect(await overlaps(title, toggle), item).toBe(false);
+    await toggle.click();
+    await expect(actions).toBeVisible();
     expect(await overlaps(title, actions), item).toBe(false);
     for (const btn of await actions.getByRole("button").all()) expect(await overlaps(title, btn), item).toBe(false);
   }

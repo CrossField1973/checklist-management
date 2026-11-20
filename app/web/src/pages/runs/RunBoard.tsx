@@ -10,10 +10,9 @@ import type { Progress, RunItemNode, RunSection } from "../../api/types";
 import { Button, Dialog } from "../../components/ui";
 import {
   countNodes, descendantIds, findNode, getBoardProjection, indentTarget, isSamePlace, moveDownTarget, moveUpTarget, outdentTarget,
-  type BoardRow, type BoardTarget, type MoveTarget,
+  treeGuides, type BoardRow, type BoardTarget, type MoveTarget, type TreeGuide,
 } from "../../lib/tree";
-
-const INDENT = 28; // Pixel je Ebene (Einrückung und Maß für die horizontale Ziehbewegung)
+import { INDENT, RowMenuToggle, TreeGuides, dragClasses, dropInfoText, lockX, rowStyle } from "../../components/tree";
 
 export interface BoardActions {
   onCheck: (item: RunItemNode, checked: boolean) => Promise<void>;
@@ -70,6 +69,11 @@ function flattenItems(items: RunItemNode[], sectionId: string, hideDone: boolean
 interface RowProps {
   node: RunItemNode;
   depth: number;
+  guide: TreeGuide;
+  /** Beim Ziehen: Hinweis, wo der Punkt landet (nur an der gezogenen Zeile). */
+  dropInfo?: string;
+  /** Beim Ziehen: Zeile ist der künftige Überpunkt. */
+  isDropParent: boolean;
   sectionId: string;
   sectionItems: RunItemNode[];
   readOnly: boolean;
@@ -82,8 +86,9 @@ interface RowProps {
 }
 
 /** Inhalt einer Zeile; Ziehgriff und Verschiebe-Schaltflächen nur im Bearbeitungsmodus. */
-function RowBody({ node, sectionId, sectionItems, readOnly, draggable, adding, actions, onToggleAdd, onAskDelete, handle }: RowProps & { handle?: React.ReactNode }) {
+function RowBody({ node, sectionId, sectionItems, readOnly, draggable, adding, dropInfo, actions, onToggleAdd, onAskDelete, handle }: RowProps & { handle?: React.ReactNode }) {
   const { t } = useTranslation();
+  const [menu, setMenu] = useState(false);
   const hasChildren = node.children.length > 0;
   const pending = node.id.startsWith("tmp-"); // offline angelegt, noch nicht übertragen (F-74)
   const canMove = draggable && !pending && !!actions.onMoveItem;
@@ -91,22 +96,24 @@ function RowBody({ node, sectionId, sectionItems, readOnly, draggable, adding, a
   const iconBtn = "btn btn-sm px-2";
   return (
     <div className="row flex flex-wrap items-start gap-2 rounded-lg border border-border bg-surface p-1 pr-2">
-      {handle}
       <div className="min-w-0 flex-[1_1_12rem]">
         <div className="flex items-center gap-2">
+          {handle}
           <label className={`flex min-h-10 min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1 ${readOnly || pending ? "" : "cursor-pointer hover:bg-bg"}`}>
             <input
               type="checkbox" className="h-6 w-6 shrink-0" checked={node.isChecked} disabled={readOnly || pending}
               id={`chk-${node.id}`} onChange={(e) => void actions.onCheck(node, e.target.checked)}
             />
-            <span className={`min-w-0 font-medium [overflow-wrap:anywhere] ${node.isChecked ? "text-muted line-through" : ""}`}>{node.title}</span>
+            <span className={`min-w-0 font-medium hyphens-auto [overflow-wrap:anywhere] ${node.isChecked ? "text-muted line-through" : ""}`}>{node.title}</span>
           </label>
           {pending && <span className="badge">{t("offline.waiting")}</span>}
           {hasChildren && <span className="badge" aria-label={t("runs.subProgress", { done: node.childProgress.done, total: node.childProgress.total })}>{node.childProgress.done}/{node.childProgress.total}</span>}
+          {!readOnly && !pending && <RowMenuToggle open={menu} title={node.title} onToggle={() => setMenu((m) => !m)} t={t} />}
         </div>
+        {dropInfo && <p className="m-0 mb-1 ml-2 text-sm font-medium text-primary">{dropInfo}</p>}
       </div>
       {!readOnly && !pending && (
-        <div role="group" aria-label={t("runs.actionsFor", { title: node.title })} className="row-actions ml-auto flex flex-wrap justify-end gap-1 self-center">
+        <div role="group" aria-label={t("runs.actionsFor", { title: node.title })} className={`row-actions touch-menu ${menu ? "open" : ""} ml-auto flex flex-wrap justify-end gap-1 self-center`}>
           {canMove && (
             <>
               <button type="button" className={iconBtn} disabled={!moveUpTarget(sectionItems, node.id)} onClick={() => move(moveUpTarget(sectionItems, node.id))} aria-label={t("items.up", { title: node.title })} title={t("items.upShort")}>↑</button>
@@ -125,7 +132,8 @@ function RowBody({ node, sectionId, sectionItems, readOnly, draggable, adding, a
 
 function StaticRow(props: RowProps) {
   return (
-    <li style={{ marginLeft: props.depth * INDENT }} data-testid={`item-${props.node.id}`}>
+    <li className="relative py-1" style={rowStyle(props.depth)} data-testid={`item-${props.node.id}`}>
+      <TreeGuides depth={props.depth} {...props.guide} />
       <RowBody {...props} />
     </li>
   );
@@ -139,15 +147,16 @@ function SortableRow(props: RowProps) {
     <button
       ref={setActivatorNodeRef} type="button" {...attributes} {...listeners}
       aria-label={t("items.dragHandle", { title: props.node.title })} title={t("items.dragHint")}
-      className="btn btn-sm cursor-grab touch-none self-center px-2"
+      className="btn btn-sm drag-handle cursor-grab touch-none self-center px-2"
     >⋮⋮</button>
   );
   return (
     <li
       ref={setNodeRef} data-testid={`item-${props.node.id}`}
-      style={{ transform: CSS.Translate.toString(transform), transition, marginLeft: props.depth * INDENT }}
-      className={props.isDragging ? "opacity-60 [&_.row]:ring-2 [&_.row]:ring-primary" : ""}
+      style={{ transform: CSS.Translate.toString(lockX(transform, props.isDragging)), transition, ...rowStyle(props.depth) }}
+      className={`relative py-1 ${dragClasses(props.isDragging, props.isDropParent)}`}
     >
+      {!props.isDragging && <TreeGuides depth={props.depth} {...props.guide} />}
       <RowBody {...props} handle={handle} />
     </li>
   );
@@ -160,7 +169,7 @@ function EndRow({ id, dragging, empty }: { id: string; dragging: boolean; empty:
   return (
     <li
       ref={setNodeRef} aria-hidden="true" style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={dragging ? `rounded-lg border border-dashed border-border text-center text-sm text-muted ${empty ? "py-3" : "py-1"}` : "h-0"}
+      className={dragging ? `my-1 rounded-lg border border-dashed border-border text-center text-sm text-muted ${empty ? "py-3" : "py-1"}` : "h-0"}
     >{dragging ? t("runs.dropHere") : null}</li>
   );
 }
@@ -192,6 +201,7 @@ export function RunBoard({ sections, readOnly, hideDone = false, actions }: { se
   const projection = activeId && overId ? getBoardProjection(rows, activeId, overId, offsetX, INDENT, descendants) : null;
   const reset = () => { setActiveId(null); setOverId(null); setOffsetX(0); };
   const titleOf = (id: unknown) => findItem(String(id))?.title ?? "";
+  const dropInfo = projection ? dropInfoText(t, projection.parentId ? titleOf(projection.parentId) : null, descendants.size) : undefined;
 
   function dragEnd(e: DragEndEvent) {
     const id = activeId;
@@ -215,13 +225,16 @@ export function RunBoard({ sections, readOnly, hideDone = false, actions }: { se
   const renderSection = (s: RunSection) => {
     const sectionRows = rows.filter((r) => r.sectionId === s.id);
     const visibleRows = activeId ? sectionRows.filter((r) => !descendants.has(r.id)) : sectionRows; // Unterpunkte wandern beim Ziehen mit
+    const guides = treeGuides(visibleRows.filter((r) => !r.isEnd).map((r) => r.depth));
     return (
       <section key={s.id} className="card" aria-label={t("runs.itemsLabel")}>
-        <ul className="m-0 grid list-none gap-2 p-0" aria-label={t("runs.itemsLabel")}>
-          {visibleRows.map((r) => {
+        <ul className="m-0 list-none p-0" aria-label={t("runs.itemsLabel")}>
+          {visibleRows.map((r, i) => {
             if (r.isEnd) return <EndRow key={r.id} id={r.id} dragging={activeId !== null} empty={s.items.length === 0} />;
             const common: RowProps = {
-              node: r.node!, depth: r.id === activeId && projection ? projection.depth : r.depth, sectionId: s.id, sectionItems: s.items,
+              node: r.node!, depth: r.id === activeId && projection ? projection.depth : r.depth, guide: guides[i]!,
+              dropInfo: r.id === activeId ? dropInfo : undefined, isDropParent: !!projection?.parentId && projection.parentId === r.id,
+              sectionId: s.id, sectionItems: s.items,
               readOnly, draggable, isDragging: r.id === activeId, adding: addingUnder === r.id, actions,
               onToggleAdd: () => setAddingUnder((cur) => (cur === r.id ? null : r.id)), onAskDelete: setToDelete,
             };
@@ -229,7 +242,8 @@ export function RunBoard({ sections, readOnly, hideDone = false, actions }: { se
               <FragmentRow key={r.id}>
                 {draggable ? <SortableRow {...common} /> : <StaticRow {...common} />}
                 {addingUnder === r.id && !readOnly && (
-                  <li style={{ marginLeft: (r.depth + 1) * INDENT }}>
+                  <li className="relative py-1" style={rowStyle(r.depth + 1)}>
+                    <TreeGuides depth={r.depth + 1} guides={r.depth > 0 ? [...guides[i]!.guides, !guides[i]!.last] : []} last={r.node!.children.length === 0} />
                     <AddForm label={t("runs.addChildLabel", { title: r.node!.title })} autoFocus onClose={() => setAddingUnder(null)} onAdd={(title) => actions.onAdd(s.id, title, r.id)} />
                   </li>
                 )}

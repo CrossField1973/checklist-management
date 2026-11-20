@@ -322,3 +322,20 @@ export function applyCheck<N extends { id: string; isChecked: boolean; children:
   const setAll = (n: N): N => ({ ...n, isChecked: checked, children: n.children.map(setAll) });
   return items.map((n) => (n.id === id ? setAll(n) : { ...n, children: applyCheck(n.children, id, checked) }));
 }
+
+export interface TreeGuide { guides: boolean[]; last: boolean }
+
+/**
+ * Baumlinien für eine abgeflachte Liste (nur die Tiefen, in Anzeigereihenfolge): `last` = letzter Geschwisterpunkt,
+ * `guides[k]` = die senkrechte Linie der Ebene k läuft an dieser Zeile vorbei (der Vorfahre auf Ebene k+1 hat noch spätere Geschwister).
+ */
+export function treeGuides(depths: readonly number[]): TreeGuide[] {
+  const hasLaterSibling = (i: number, depth: number) => {
+    for (let j = i + 1; j < depths.length; j++) {
+      if (depths[j]! < depth) return false;
+      if (depths[j] === depth) return true;
+    }
+    return false;
+  };
+  return depths.map((d, i) => ({ last: !hasLaterSibling(i, d), guides: Array.from({ length: Math.max(d - 1, 0) }, (_, k) => hasLaterSibling(i, k + 1)) }));
+}
