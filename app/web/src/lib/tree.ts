@@ -251,16 +251,16 @@ export function moveBetweenSections<N extends ItemNode, S extends { id: string; 
   return sections.map((s) => (s.id === from.id ? { ...s, items: rest } : s.id === to.id ? { ...s, items: inserted } : s));
 }
 
-export interface BoardRow { id: string; sectionId: string; parentId: string | null; depth: number; isEnd: boolean }
+export interface BoardRow { id: string; sectionId: string; parentId: string | null; depth: number; isEnd: boolean; /** Anzahl der Unterpunkte (für eingeklappte Punkte) */ childCount?: number }
 export interface BoardProjection { sectionId: string; depth: number; parentId: string | null; position: number }
 
 /**
  * Wohin fiele ein gezogener Punkt auf einer Seite mit mehreren Abschnitten? `rows` ist die sichtbare Reihenfolge aller Abschnitte;
  * je Abschnitt steht am Ende eine Zeile `isEnd` (Ablageziel für „ans Ende“ und für leere Abschnitte). Der Zielabschnitt ist
  * der der Zeile unter dem Zeiger; die Ebene folgt wie beim Punktebaum der horizontalen Bewegung (`offsetX` in Pixel).
- * `descendants` sind die Unterpunkte des gezogenen Punkts (wandern mit).
+ * `descendants` sind die Unterpunkte des gezogenen Punkts (wandern mit); unter einen eingeklappten Punkt (`collapsed`) wird angehängt.
  */
-export function getBoardProjection(rows: readonly BoardRow[], activeId: string, overId: string, offsetX: number, indentWidth: number, descendants: ReadonlySet<string>): BoardProjection | null {
+export function getBoardProjection(rows: readonly BoardRow[], activeId: string, overId: string, offsetX: number, indentWidth: number, descendants: ReadonlySet<string>, collapsed: ReadonlySet<string> = new Set()): BoardProjection | null {
   const active = rows.find((r) => r.id === activeId && !r.isEnd);
   const overIndex = rows.findIndex((r) => r.id === overId);
   const activeIndex = rows.findIndex((r) => r.id === activeId);
@@ -290,7 +290,8 @@ export function getBoardProjection(rows: readonly BoardRow[], activeId: string, 
     else if (depth > previous.depth) parentId = previous.id;
     else parentId = list.slice(0, idx).reverse().find((r) => r.depth === depth)?.parentId ?? null;
   }
-  const position = list.slice(0, idx).filter((r) => r.parentId === parentId && r.depth === depth).length;
+  let position = list.slice(0, idx).filter((r) => r.parentId === parentId && r.depth === depth).length;
+  if (parentId !== null && previous?.id === parentId && collapsed.has(parentId)) position = previous.childCount ?? 0;
   return { sectionId, depth, parentId, position };
 }
 

@@ -59,10 +59,10 @@ const isDone = (i: RunItemNode): boolean => i.isChecked && i.children.every(isDo
 
 /** Zeile der abgeflachten Liste eines Abschnitts (Eltern vor Kindern, Tiefe als Einrückung). */
 interface Row extends BoardRow { node?: RunItemNode }
-function flattenItems(items: RunItemNode[], sectionId: string, hideDone: boolean, parentId: string | null = null, depth = 0): Row[] {
+function flattenItems(items: RunItemNode[], sectionId: string, hideDone: boolean, collapsed: ReadonlySet<string>, parentId: string | null = null, depth = 0): Row[] {
   return items.filter((i) => !(hideDone && isDone(i))).flatMap((node) => [
-    { id: node.id, sectionId, parentId, depth, isEnd: false, node },
-    ...flattenItems(node.children, sectionId, hideDone, node.id, depth + 1),
+    { id: node.id, sectionId, parentId, depth, isEnd: false, node, childCount: node.children.length },
+    ...(collapsed.has(node.id) ? [] : flattenItems(node.children, sectionId, hideDone, collapsed, node.id, depth + 1)),
   ]);
 }
 
@@ -80,13 +80,15 @@ interface RowProps {
   draggable: boolean;
   isDragging: boolean;
   adding: boolean;
+  isCollapsed: boolean;
   actions: BoardActions;
+  onToggleCollapse: () => void;
   onToggleAdd: () => void;
   onAskDelete: (i: RunItemNode) => void;
 }
 
 /** Inhalt einer Zeile; Ziehgriff und Verschiebe-Schaltflächen nur im Bearbeitungsmodus. */
-function RowBody({ node, sectionId, sectionItems, readOnly, draggable, adding, dropInfo, actions, onToggleAdd, onAskDelete, handle }: RowProps & { handle?: React.ReactNode }) {
+function RowBody({ node, sectionId, sectionItems, readOnly, draggable, adding, isCollapsed, dropInfo, actions, onToggleCollapse, onToggleAdd, onAskDelete, handle }: RowProps & { handle?: React.ReactNode }) {
   const { t } = useTranslation();
   const [menu, setMenu] = useState(false);
   const hasChildren = node.children.length > 0;
@@ -99,6 +101,7 @@ function RowBody({ node, sectionId, sectionItems, readOnly, draggable, adding, d
       <div className="min-w-0 flex-[1_1_12rem]">
         <div className="flex items-center gap-2">
           {handle}
+          {hasChildren && <button type="button" className={`${iconBtn} shrink-0`} aria-expanded={!isCollapsed} aria-label={t(isCollapsed ? "items.expand" : "items.collapse", { title: node.title })} onClick={onToggleCollapse}>{isCollapsed ? "▸" : "▾"}</button>}
           <label className={`flex min-h-10 min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1 ${readOnly || pending ? "" : "cursor-pointer hover:bg-bg"}`}>
             <input
               type="checkbox" className="h-6 w-6 shrink-0" checked={node.isChecked} disabled={readOnly || pending}
@@ -183,6 +186,8 @@ export function RunBoard({ sections, readOnly, hideDone = false, actions }: { se
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [offsetX, setOffsetX] = useState(0);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const toggleCollapse = (id: string) => setCollapsed((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
   // Ziehen nur, wenn alle Punkte sichtbar sind (ausgeblendete Erledigte würden die Zielposition verfälschen)
   const draggable = !readOnly && !!actions.onMoveItem && !hideDone;
@@ -192,20 +197,20 @@ export function RunBoard({ sections, readOnly, hideDone = false, actions }: { se
   );
 
   const rows: Row[] = useMemo(() => sections.flatMap((s) => [
-    ...flattenItems(s.items, s.id, hideDone),
+    ...flattenItems(s.items, s.id, hideDone, collapsed),
     ...(draggable ? [{ id: `end-${s.id}`, sectionId: s.id, parentId: null, depth: 0, isEnd: true } as Row] : []),
-  ]), [sections, hideDone, draggable]);
+  ]), [sections, hideDone, draggable, collapsed]);
 
   const findItem = (id: string | null) => { for (const s of sections) { const n = id ? findNode(s.items, id) : null; if (n) return n as RunItemNode; } return null; };
   const descendants = useMemo(() => new Set(activeId ? descendantIds(findItem(activeId) ?? { children: [] } as never) : []), [activeId, sections]); // eslint-disable-line react-hooks/exhaustive-deps
-  const projection = activeId && overId ? getBoardProjection(rows, activeId, overId, offsetX, INDENT, descendants) : null;
+  const projection = activeId && overId ? getBoardProjection(rows, activeId, overId, offsetX, INDENT, descendants, collapsed) : null;
   const reset = () => { setActiveId(null); setOverId(null); setOffsetX(0); };
   const titleOf = (id: unknown) => findItem(String(id))?.title ?? "";
   const dropInfo = projection ? dropInfoText(t, projection.parentId ? titleOf(projection.parentId) : null, descendants.size) : undefined;
 
   function dragEnd(e: DragEndEvent) {
     const id = activeId;
-    const proj = e.over && id ? getBoardProjection(rows, id, String(e.over.id), offsetX, INDENT, descendants) : null;
+    const proj = e.over && id ? getBoardProjection(rows, id, String(e.over.id), offsetX, INDENT, descendants, collapsed) : null;
     reset();
     const node = findItem(id);
     if (!proj || !node || !id) return;
@@ -235,15 +240,17 @@ export function RunBoard({ sections, readOnly, hideDone = false, actions }: { se
               node: r.node!, depth: r.id === activeId && projection ? projection.depth : r.depth, guide: guides[i]!,
               dropInfo: r.id === activeId ? dropInfo : undefined, isDropParent: !!projection?.parentId && projection.parentId === r.id,
               sectionId: s.id, sectionItems: s.items,
-              readOnly, draggable, isDragging: r.id === activeId, adding: addingUnder === r.id, actions,
-              onToggleAdd: () => setAddingUnder((cur) => (cur === r.id ? null : r.id)), onAskDelete: setToDelete,
+              readOnly, draggable, isDragging: r.id === activeId, adding: addingUnder === r.id, isCollapsed: collapsed.has(r.id), actions,
+              onToggleCollapse: () => toggleCollapse(r.id),
+              onToggleAdd: () => { setAddingUnder((cur) => (cur === r.id ? null : r.id)); if (collapsed.has(r.id)) toggleCollapse(r.id); }, // neuer Unterpunkt soll sichtbar sein
+              onAskDelete: setToDelete,
             };
             return (
               <FragmentRow key={r.id}>
                 {draggable ? <SortableRow {...common} /> : <StaticRow {...common} />}
                 {addingUnder === r.id && !readOnly && (
                   <li className="relative py-1" style={rowStyle(r.depth + 1)}>
-                    <TreeGuides depth={r.depth + 1} guides={r.depth > 0 ? [...guides[i]!.guides, !guides[i]!.last] : []} last={r.node!.children.length === 0} />
+                    <TreeGuides depth={r.depth + 1} guides={r.depth > 0 ? [...guides[i]!.guides, !guides[i]!.last] : []} last={r.node!.children.length === 0 || collapsed.has(r.id)} />
                     <AddForm label={t("runs.addChildLabel", { title: r.node!.title })} autoFocus onClose={() => setAddingUnder(null)} onAdd={(title) => actions.onAdd(s.id, title, r.id)} />
                   </li>
                 )}

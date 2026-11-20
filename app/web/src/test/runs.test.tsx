@@ -419,6 +419,17 @@ describe("Reihenfolge ändern, Abhaken und Fortschritt", () => {
     expect(api.callsTo("POST /run-items/d/move")[0]!.body).toEqual({ sectionId: "s1", parentItemId: null, position: 3 });
   });
 
+  it("Unterpunkte lassen sich ein- und ausklappen", async () => {
+    runsApi();
+    const { ui } = renderApp("/runs/r1");
+    await screen.findByRole("checkbox", { name: "Brot" });
+    await ui.click(screen.getByRole("button", { name: "Unterpunkte von Proviant ausblenden" }));
+    expect(screen.queryByRole("checkbox", { name: "Brot" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Unterpunkte von (Rucksack|Route)/ })).not.toBeInTheDocument(); // nur bei Punkten mit Unterpunkten
+    await ui.click(screen.getByRole("button", { name: "Unterpunkte von Proviant einblenden" }));
+    expect(screen.getByRole("checkbox", { name: "Brot" })).toBeInTheDocument();
+  });
+
   it("Ziehen ist bei ausgeblendeten Erledigten abgeschaltet (Position wäre unklar)", async () => {
     const api = runsApi();
     api.setUser({ ...USER, hideDone: true });

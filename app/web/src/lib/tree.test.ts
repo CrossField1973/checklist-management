@@ -212,6 +212,10 @@ describe("Mehrere Abschnitte: getBoardProjection", () => {
   it("ein Punkt unter einem Punkt eines anderen Abschnitts wird dort Unterpunkt", () => {
     expect(proj("B", "Y", 30)).toMatchObject({ sectionId: "S2", parentId: "Y", depth: 1 });
   });
+  it("unter einen eingeklappten Punkt wird hinten angehängt", () => {
+    const folded = rows.filter((r) => r.id !== "A1").map((r) => (r.id === "A" ? { ...r, childCount: 1 } : r));
+    expect(getBoardProjection(folded, "B", "B", 30, 28, new Set(), new Set(["A"]))).toEqual({ sectionId: "S1", depth: 1, parentId: "A", position: 1 });
+  });
   it("unbekannte Ziele ergeben null", () => {
     expect(proj("B", "nix")).toBeNull();
     expect(proj("end-S1", "B")).toBeNull();
