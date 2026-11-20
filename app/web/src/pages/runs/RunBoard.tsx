@@ -92,21 +92,21 @@ function RowBody({ node, sectionId, sectionItems, readOnly, draggable, adding, a
   return (
     <div className="row flex flex-wrap items-start gap-2 rounded-lg border border-border bg-surface p-1 pr-2">
       {handle}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-[1_1_12rem]">
         <div className="flex items-center gap-2">
           <label className={`flex min-h-10 min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1 ${readOnly || pending ? "" : "cursor-pointer hover:bg-bg"}`}>
             <input
               type="checkbox" className="h-6 w-6 shrink-0" checked={node.isChecked} disabled={readOnly || pending}
               id={`chk-${node.id}`} onChange={(e) => void actions.onCheck(node, e.target.checked)}
             />
-            <span className={`break-words font-medium ${node.isChecked ? "text-muted line-through" : ""}`}>{node.title}</span>
+            <span className={`min-w-0 font-medium [overflow-wrap:anywhere] ${node.isChecked ? "text-muted line-through" : ""}`}>{node.title}</span>
           </label>
           {pending && <span className="badge">{t("offline.waiting")}</span>}
           {hasChildren && <span className="badge" aria-label={t("runs.subProgress", { done: node.childProgress.done, total: node.childProgress.total })}>{node.childProgress.done}/{node.childProgress.total}</span>}
         </div>
       </div>
       {!readOnly && !pending && (
-        <div role="group" aria-label={t("runs.actionsFor", { title: node.title })} className="row-actions flex flex-wrap gap-1 self-center">
+        <div role="group" aria-label={t("runs.actionsFor", { title: node.title })} className="row-actions ml-auto flex flex-wrap justify-end gap-1 self-center">
           {canMove && (
             <>
               <button type="button" className={iconBtn} disabled={!moveUpTarget(sectionItems, node.id)} onClick={() => move(moveUpTarget(sectionItems, node.id))} aria-label={t("items.up", { title: node.title })} title={t("items.upShort")}>↑</button>
