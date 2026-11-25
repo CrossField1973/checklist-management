@@ -1,6 +1,6 @@
 # Checklisten-Management – Hinweise für Claude
 
-Selbst gehostete Neuumsetzung der Mendix-„Checklist App“ (Vorlagen, Durchführungen, Teilen, API, MCP). Sprache im Projekt: **Deutsch** (Doku, UI-Texte, Antworten); Code und Bezeichner englisch.
+Selbst gehostete Neuumsetzung der Mendix-„Checklist App“ (Vorlagen, Durchführungen, Teilen, API, MCP).
 
 ## Wo steht was
 - `Pflichtenheft.md` – maßgebliche Anforderungen (F-xx, N-xx), Datenmodell, API-Skizze und **Entwicklungsreihenfolge in §7 mit ✔-Markierungen = aktueller Stand**. Nach jedem Schritt dort das ✔ setzen.
@@ -17,9 +17,8 @@ esourcesin`, nicht im PATH): `docker compose up --build` (braucht `.env`, siehe
 
 ## Arbeitsweise (Absprache mit dem Nutzer)
 - Der Nutzer bestätigt jeden Schritt einzeln („Ja, Schritt N“); nichts ungefragt weiterführen.
-- **Prüfaufwand minimal halten:** nur die Tests der geänderten Bereiche laufen lassen, zum Abschluss eines Schritts einmal `typecheck:all` und die betroffenen Testdateien. Keine Fehlereinbau-Prüfungen, kein Docker- oder Browserlauf pro Schritt, außer bei sicherheitsrelevanten Änderungen (Teilen, Token, Anmeldung). Eine Gesamtprüfung (alle Tests, Docker, Browser, Playwright) gibt es erst nach vollständiger Umsetzung.
-- Doku gesammelt am Ende eines Schritts, kurz. Antworten kurz, ohne lange Zusammenfassungen.
-- Dateien nur gezielt lesen (Teilbereiche), nicht ganze große Dateien ohne Grund.
+- Prüfaufwand: siehe globale CLAUDE.md; Abschluss eines Schritts = `typecheck:all` + betroffene Testdateien, keine Fehlereinbau-Prüfungen.
+- Doku gesammelt am Ende eines Schritts, kurz.
 - Alle Schritte 1–15 sind umgesetzt. Offene Restpunkte: Gesamtprüfung durch den Nutzer, Optionales aus Teil B des Pflichtenhefts.
 
 ## Konventionen
@@ -38,7 +37,6 @@ esourcesin`, nicht im PATH): `docker compose up --build` (braucht `.env`, siehe
 - Barrierefreiheit: Beschriftungen für alle Bedienelemente, Tastaturbedienung, bewegungsfreie Alternative zu Ziehen.
 
 ## Bekannte Stolpersteine
-- Bash-Heredocs mit Apostrophen in der Shell scheitern; längere Skripte/Dateien mit dem Write-Werkzeug anlegen.
 - Windows/Git-Bash: Pfade mit `/` werden umgewandelt (MSYS); bei `docker`/`curl`-Pfaden aufpassen.
 - Docker-Image: `npm ci --ignore-scripts` (better-sqlite3 bringt Binaries mit), Node 24.
 - SPA-Fallback liefert für Pfade mit Dateiendung 404, sonst `index.html`.
